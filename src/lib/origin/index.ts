@@ -1,1 +1,1 @@
-export { isAbsoluteUrl, normalizeOrigin, isAllowedOrigin } from '@/lib/origin/origin';
+export { isAbsoluteUrl, normalizeOrigin, isAllowedOrigin, stripQuery } from '@/lib/origin/origin';

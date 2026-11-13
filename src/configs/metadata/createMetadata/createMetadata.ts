@@ -10,10 +10,16 @@ type MetadataOverrides = Partial<Metadata> & {
    */
   preview?: string;
   /**
-   * Route-relative path (e.g. `/template`) used to build canonical +
+   * Route-relative path (e.g. `/about`) used to build canonical +
    * hreflang URLs. Defaults to `/`.
    */
   path?: string;
+  /**
+   * `false` for pages that must not be indexed (404, previews): noindex and
+   * NO canonical / hreflang / `og:url` — pointing those at another URL
+   * would contradict the noindex.
+   */
+  indexable?: boolean;
 };
 
 /**
@@ -32,13 +38,14 @@ type MetadataOverrides = Partial<Metadata> & {
  * });
  */
 export async function createMetadata(overrides?: MetadataOverrides): Promise<Metadata> {
-  const { preview, path, ...rest } = overrides ?? {};
+  const { preview, path, indexable = true, ...rest } = overrides ?? {};
   const base = await getBaseMetadata(path ?? '/');
 
-  let imageOverrides: { images: string[] } | undefined;
+  let imageOverrides: { images: { url: string; alt?: string }[] } | undefined;
   if (preview) {
-    const imageUrl = isAbsoluteUrl(preview) ? preview : previewImage(preview);
-    imageOverrides = { images: [imageUrl] };
+    const url = isAbsoluteUrl(preview) ? preview : previewImage(preview);
+    const alt = typeof rest.title === 'string' ? rest.title : undefined;
+    imageOverrides = { images: [alt ? { url, alt } : { url }] };
   }
 
   const socialOverrides = {
@@ -59,7 +66,7 @@ export async function createMetadata(overrides?: MetadataOverrides): Promise<Met
       ? { title: { absolute: defaultTitle } }
       : {};
 
-  return {
+  const metadata: Metadata = {
     ...base,
     ...titleOverride,
     ...rest,
@@ -84,5 +91,19 @@ export async function createMetadata(overrides?: MetadataOverrides): Promise<Met
       ...rest.twitter,
       ...imageOverrides,
     },
+  };
+
+  if (indexable) return metadata;
+
+  const openGraph = { ...metadata.openGraph } as NonNullable<Metadata['openGraph']> & {
+    url?: unknown;
+  };
+  delete openGraph.url;
+  return {
+    ...metadata,
+    // `null`, not omitted: an omitted key INHERITS the root layout's canonical.
+    alternates: null,
+    openGraph,
+    robots: { index: false, follow: false },
   };
 }

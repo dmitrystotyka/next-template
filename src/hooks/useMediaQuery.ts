@@ -1,6 +1,6 @@
 'use client';
 
-import { useSyncExternalStore, useCallback } from 'react';
+import { useSyncExternalStore } from 'react';
 
 // One MediaQueryList per query string for the whole app — `getSnapshot`
 // runs on every store check, and `window.matchMedia()` allocates + parses
@@ -16,28 +16,25 @@ function getMediaQueryList(query: string): MediaQueryList {
   return mql;
 }
 
+const getServerSnapshot = () => false;
+
 /**
  * Hook for tracking media query state.
  * Uses useSyncExternalStore for safe SSR hydration.
- * Returns `false` on the server.
+ * Returns `false` on the server and during hydration.
  *
  * @example
  * const isMobile = useMediaQuery('(max-width: 768px)');
- * const prefersDark = useMediaQuery('(prefers-color-scheme: dark)');
+ * const reducedMotion = useMediaQuery('(prefers-reduced-motion: reduce)');
  */
 export function useMediaQuery(query: string): boolean {
-  const subscribe = useCallback(
-    (callback: () => void) => {
-      const mediaQuery = getMediaQueryList(query);
-      mediaQuery.addEventListener('change', callback);
-      return () => mediaQuery.removeEventListener('change', callback);
-    },
-    [query],
-  );
-
-  const getSnapshot = useCallback(() => getMediaQueryList(query).matches, [query]);
-
-  const getServerSnapshot = useCallback(() => false, []);
+  // React Compiler keeps both closures stable per `query` — no useCallback.
+  const subscribe = (callback: () => void) => {
+    const mediaQuery = getMediaQueryList(query);
+    mediaQuery.addEventListener('change', callback);
+    return () => mediaQuery.removeEventListener('change', callback);
+  };
+  const getSnapshot = () => getMediaQueryList(query).matches;
 
   return useSyncExternalStore(subscribe, getSnapshot, getServerSnapshot);
 }

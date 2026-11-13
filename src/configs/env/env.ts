@@ -45,6 +45,7 @@ const envSchema = z.object({
   CSP_STRICT_STYLES: optionalBool,
   CSP_REPORT_URI: urlSchema.optional().or(z.literal('')),
   TRUSTED_TYPES_MODE: z.enum(['off', 'report', 'enforce']).optional().or(z.literal('')),
+  INDEXING: z.enum(['on', 'off']).optional().or(z.literal('')),
 });
 
 export function validateEnv(): void {

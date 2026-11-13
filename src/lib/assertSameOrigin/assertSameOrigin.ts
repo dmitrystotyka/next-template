@@ -1,6 +1,6 @@
 import { headers } from 'next/headers';
 
-import { urls } from '@/configs/constants/urls';
+import { urls } from '@/configs/urls';
 import { ForbiddenError } from '@/lib/errors';
 import { isAllowedOrigin, normalizeOrigin } from '@/lib/origin';
 import { logger } from '@/utils/logger';

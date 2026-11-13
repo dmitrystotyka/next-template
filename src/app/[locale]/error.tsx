@@ -1,32 +1,19 @@
 'use client';
 
-import { useEffect } from 'react';
-
 import { ErrorState } from '@/components/layouts/ErrorState';
-import { errorReporting } from '@/lib/errorReporting';
 
 /**
- * Locale-level error boundary — catches runtime errors thrown by pages and
- * nested layouts BELOW `[locale]/layout.tsx`. Errors inside that layout
- * itself propagate to `app/global-error.tsx` (an error.tsx never catches
- * its own sibling layout).
- *
- * `error` — the Error object thrown by a child component.
- * `reset()` — re-renders the error boundary's children to attempt recovery.
- *              Does NOT navigate — simply retries rendering the failed segment.
+ * Locale-level boundary — errors thrown by the `(routes)` layout
+ * (Header/Footer) and anything below it that no closer boundary caught. Renders without the site chrome, so it brings its own
+ * `<main>`. Errors in `[locale]/layout.tsx` itself → `app/global-error.tsx`.
  */
-
 type ErrorPageProps = {
   error: Error & { digest?: string };
-  reset: () => void;
+  retry: () => void;
 };
 
-function ErrorPage({ error, reset }: ErrorPageProps) {
-  useEffect(() => {
-    errorReporting.captureException(error, { scope: 'locale-segment', digest: error.digest });
-  }, [error]);
-
-  return <ErrorState error={error} reset={reset} />;
+function ErrorPage({ error, retry }: ErrorPageProps) {
+  return <ErrorState error={error} retry={retry} scope="locale-segment" landmark />;
 }
 
 export default ErrorPage;

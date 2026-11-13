@@ -57,7 +57,14 @@ export function WebVitals() {
     // `sendBeacon` is the recommended transport — it survives unload. It
     // returns false when the browser refuses (queue full) — fall back to
     // `fetch({ keepalive: true })` so the metric isn't silently dropped.
-    const queued = navigator.sendBeacon?.(VITALS_ENDPOINT, body) ?? false;
+    // Some browsers THROW (not return false) on a non-safelisted cross-origin
+    // Blob type — treat that as "not queued" too.
+    let queued = false;
+    try {
+      queued = navigator.sendBeacon?.(VITALS_ENDPOINT, body) ?? false;
+    } catch {
+      queued = false;
+    }
     if (!queued) {
       void fetch(VITALS_ENDPOINT, { method: 'POST', body, keepalive: true }).catch(() => {
         // Swallow — losing a metric must never break the page.

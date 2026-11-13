@@ -1,6 +1,7 @@
 node_modules
 .next
-build
+coverage
+.vitest
 pnpm-lock.yaml
 *.min.js
 *.min.css

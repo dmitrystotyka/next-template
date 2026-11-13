@@ -1,5 +1,5 @@
-import { urls } from '@/configs/constants/urls';
 import { projectConfig } from '@/configs/project';
+import { urls } from '@/configs/urls';
 
 import type { MetadataRoute } from 'next';
 
@@ -9,8 +9,8 @@ import type { MetadataRoute } from 'next';
  * When `projectConfig.robots` is `false` (e.g. non-production),
  * all crawlers are blocked to prevent indexing of staging/dev.
  *
- * To completely disable robots.txt generation, remove this file
- * and add `'/robots.txt'` to the `matcher` exclusion in `proxy.ts`.
+ * To disable robots.txt generation, remove this file (`/robots.txt` is
+ * already excluded from the proxy matcher).
  */
 export default function robots(): MetadataRoute.Robots {
   if (!projectConfig.robots) {

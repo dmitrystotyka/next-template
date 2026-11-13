@@ -21,12 +21,10 @@
 
 type FeatureFlagKey = keyof typeof flags;
 
+/** Add flags here — build-time constants are inlined and dead code is dropped. */
 const flags = {
-  /** Demo: gates the Redux-backed banner on the home page (see DemoBanner). */
-  demoBanner: true,
-  // Add feature flags here:
-  // newCheckout: process.env.NODE_ENV === 'development',
-  // darkModeV2: true,
+  /** Example: on in development only. Rename/replace it with your own flags. */
+  experimental: process.env.NODE_ENV === 'development',
 } as const satisfies Record<string, boolean>;
 
 export const featureFlags = {

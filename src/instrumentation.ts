@@ -1,5 +1,6 @@
 import { validateEnv } from '@/configs/env';
 import { errorReporting } from '@/lib/errorReporting';
+import { stripQuery } from '@/lib/origin';
 
 import type { Instrumentation } from 'next';
 
@@ -7,7 +8,7 @@ import type { Instrumentation } from 'next';
  * Next.js server instrumentation hook.
  * Runs once when the server starts.
  *
- * @see https://nextjs.org/docs/app/building-your-application/optimizing/instrumentation
+ * @see https://nextjs.org/docs/app/guides/instrumentation
  */
 export async function register() {
   validateEnv();
@@ -28,8 +29,11 @@ export async function register() {
 export const onRequestError: Instrumentation.onRequestError = async (error, request, context) => {
   const err = error instanceof Error ? error : new Error(String(error));
   errorReporting.captureException(err, {
+    // Same digest the client error boundary reports — joins the two reports.
+    digest: (error as { digest?: string } | null)?.digest,
     routerKind: context.routerKind,
+    routePath: context.routePath,
     method: request.method,
-    path: request.path,
+    path: stripQuery(request.path), // `path` includes the query string
   });
 };

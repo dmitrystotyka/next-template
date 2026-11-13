@@ -8,8 +8,9 @@ import { vi } from 'vitest';
 // server-only modules (serverFetch) can be unit-tested.
 vi.mock('server-only', () => ({}));
 
-// Browser-only shims. Files that opt into `// @vitest-environment node`
-// (route handlers, server helpers) have no `window` — skip them there.
+// Browser-only shims. Tests run in Node by default; files that opt into
+// `// @vitest-environment jsdom` (components, hooks) get these. Node tests
+// have no `window` — skip them there.
 if (typeof window !== 'undefined') {
   // jsdom does not implement matchMedia — required for useMediaQuery and similar hooks.
   Object.defineProperty(window, 'matchMedia', {

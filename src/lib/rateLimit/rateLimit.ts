@@ -61,8 +61,13 @@ export function resolveClientIp(source: NextRequest | Headers): string | null {
     }
   }
 
-  const realIp = headers.get('x-real-ip');
-  if (realIp && IP_SHAPE.test(realIp)) return realIp;
+  // `x-real-ip` only counts behind a DECLARED proxy (hops > 0) that
+  // overwrites it. Without one (bare `next start`, Docker, VPS) the client
+  // sets it: rotate it to dodge limits, or claim a bypass-list IP.
+  if (Number.isFinite(hops) && hops > 0) {
+    const realIp = headers.get('x-real-ip');
+    if (realIp && IP_SHAPE.test(realIp)) return realIp;
+  }
 
   // Dev convenience: direct connections without proxies land here.
   if (process.env.NODE_ENV !== 'production') return '127.0.0.1';
@@ -197,7 +202,7 @@ export function rateLimitResponse(result: RateLimitResult): NextResponse {
  * Fixed-window store: one shared window per limiter; on rollover the whole
  * map is dropped and rebuilt. O(1) per request (no full-scan cleanup on the
  * hot path) and memory is hard-bounded by MAX_ENTRIES regardless of traffic
- * shape or attacker-supplied keys.
+ * shape — past the cap new keys are counted but not stored (fail open, logged).
  */
 function createMemoryBackend(limit: number, windowSeconds: number) {
   const windowMs = windowSeconds * 1000;
@@ -205,6 +210,7 @@ function createMemoryBackend(limit: number, windowSeconds: number) {
 
   let counts = new Map<string, number>();
   let windowStart = 0;
+  let warnedFull = false;
 
   return (ip: string): RateLimitResult => {
     const now = Date.now();
@@ -212,6 +218,7 @@ function createMemoryBackend(limit: number, windowSeconds: number) {
     if (now - windowStart >= windowMs) {
       counts = new Map();
       windowStart = now;
+      warnedFull = false;
     }
 
     const resetAt = windowStart + windowMs;
@@ -219,6 +226,13 @@ function createMemoryBackend(limit: number, windowSeconds: number) {
 
     if (counts.size < MAX_ENTRIES || counts.has(ip)) {
       counts.set(ip, count);
+    } else if (!warnedFull) {
+      // Fails OPEN for keys beyond the cap (failing closed would lock out
+      // every new visitor during a distributed burst). Say so once per window.
+      warnedFull = true;
+      logger.warn(
+        `rate limit store full (${MAX_ENTRIES} clients this window) — new clients are not limited until it resets`,
+      );
     }
 
     const remaining = Math.max(0, limit - count);

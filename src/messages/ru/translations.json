@@ -3,11 +3,10 @@
     "loading": "Загрузка...",
     "skip_to_content": "Перейти к основному содержимому",
     "close": "Закрыть",
-    "opens_in_new_tab": "(откроется в новой вкладке)",
+    "notifications": "Уведомления",
     "language": "Язык",
     "nav_main": "Основная навигация",
-    "nav_home": "Главная",
-    "nav_template": "Шаблон"
+    "nav_home": "Главная"
   },
   "errors": {
     "something_went_wrong": "Что-то пошло не так",

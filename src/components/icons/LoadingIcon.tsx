@@ -6,8 +6,8 @@ type LoadingIconProps = {
   size?: number;
   strokeWidth?: number;
   color?: string;
-  /** Accessible name — pass a translated string (e.g. t('shared.loading')). */
-  label?: string;
+  /** Accessible name — a translated string (`t('loading')` from `translations.shared`). */
+  label: string;
 };
 
 const DELAY_CLASSES = [
@@ -22,7 +22,7 @@ function LoadingIcon({
   size = 20,
   strokeWidth = 3,
   color = 'currentColor',
-  label = 'Loading',
+  label,
 }: LoadingIconProps) {
   return (
     <div

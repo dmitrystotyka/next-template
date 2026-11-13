@@ -1,5 +1,5 @@
-import { urls } from '@/configs/constants/urls';
 import { projectConfig } from '@/configs/project';
+import { urls } from '@/configs/urls';
 
 /**
  * The ONE hreflang rule, shared by page metadata (`getBaseMetadata`) and

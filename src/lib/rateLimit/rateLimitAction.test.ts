@@ -1,4 +1,3 @@
-// @vitest-environment node
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
 
 // `withActionRateLimit` reads request headers via next/headers — emulate the
@@ -23,6 +22,7 @@ async function load() {
 describe('withActionRateLimit', () => {
   beforeEach(() => {
     for (const key of ['x-real-ip', 'x-forwarded-for']) headersBag.delete(key);
+    vi.stubEnv('TRUSTED_PROXY_HOPS', '1'); // x-real-ip counts only behind a declared proxy
     vi.useFakeTimers();
   });
 

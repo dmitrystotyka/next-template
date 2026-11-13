@@ -2,9 +2,9 @@ name: CI
 
 on:
   push:
-    branches: [main, master]
+    branches: [main]
   pull_request:
-    branches: [main, master]
+    branches: [main]
   workflow_dispatch:
 
 permissions:
@@ -21,7 +21,7 @@ env:
 
 jobs:
   quality:
-    name: Lint · Typecheck · Test · Build
+    name: Gates · Build · Runtime smoke test
     runs-on: ubuntu-latest
     timeout-minutes: 15
 
@@ -48,33 +48,13 @@ jobs:
         with:
           path: |
             .next/cache
-          key: ${{ runner.os }}-nextjs-${{ hashFiles('pnpm-lock.yaml') }}-${{ hashFiles('src/**/*.{ts,tsx,js,jsx,css,scss}') }}
+          key: ${{ runner.os }}-nextjs-${{ hashFiles('pnpm-lock.yaml') }}-${{ hashFiles('next.config.ts', '.env.production', 'src/**/*.{ts,tsx,js,jsx,css,scss,json}') }}
           restore-keys: |
             ${{ runner.os }}-nextjs-${{ hashFiles('pnpm-lock.yaml') }}-
 
-      - name: Lint (ESLint)
-        run: pnpm lint
-
-      - name: Lint (Stylelint)
-        run: pnpm lint:css
-
-      - name: Format check (Prettier)
-        run: pnpm format:check
-
-      - name: Typecheck
-        run: pnpm typecheck
-
-      - name: Typecheck tests
-        run: pnpm typecheck:test
-
-      - name: Unit tests (coverage)
-        run: pnpm test:coverage
-
-      - name: Check translations
-        run: pnpm check:i18n
-
-      - name: Knip (unused code/deps)
-        run: pnpm knip
+      # The exact gate set of pre-push and Vercel — one definition in package.json.
+      - name: All gates (lint · format · types · tests+coverage · i18n · knip)
+        run: pnpm check
 
       # Advisory only (|| true): a brand-new upstream advisory must not block
       # unrelated PRs, but vulnerabilities stay visible in every run's log.
@@ -85,3 +65,70 @@ jobs:
         run: pnpm build
         env:
           NEXT_PUBLIC_CLIENT_URL: http://localhost:3000
+
+      - name: Runtime smoke test (status codes · CSP nonce · SEO · HTML validation · API)
+        run: pnpm check:runtime
+        env:
+          NEXT_PUBLIC_CLIENT_URL: http://localhost:3000
+
+  # SPEC G6: a NEW project's first day — a fresh copy (no .git) in a folder named
+  # like a real project, so prepare's rename is exercised and asserted, then
+  # every generator through the same gates. Runs after `quality` is green.
+  lifecycle:
+    name: New project (prepare · generators · locale add/remove)
+    needs: quality
+    runs-on: ubuntu-latest
+    timeout-minutes: 25
+    env:
+      NEXT_PUBLIC_CLIENT_URL: http://localhost:3000
+
+    steps:
+      - name: Checkout
+        uses: actions/checkout@11d5960a326750d5838078e36cf38b85af677262 # v4
+        with:
+          persist-credentials: false
+
+      - name: Setup pnpm
+        uses: pnpm/action-setup@b906affcce14559ad1aafd4ab0e942779e9f58b1 # v4
+
+      - name: Setup Node.js
+        uses: actions/setup-node@49933ea5288caeca8642d1e84afbd3f7d6820020 # v4
+        with:
+          node-version-file: .nvmrc
+          cache: pnpm
+
+      - name: Fresh copy (what degit gives a new project)
+        run: |
+          echo "PROJECT=$RUNNER_TEMP/my-shop" >> "$GITHUB_ENV"
+          PROJECT="$RUNNER_TEMP/my-shop"
+          mkdir -p "$PROJECT"
+          tar --exclude=./.git --exclude=./node_modules --exclude=./.next -cf - . | tar -xf - -C "$PROJECT"
+
+      # No .git and no CI flag → the install hook renames the project.
+      - name: Install (prepare renames the project)
+        working-directory: ${{ env.PROJECT }}
+        run: env -u CI pnpm install --frozen-lockfile
+
+      - name: Rename applied
+        working-directory: ${{ env.PROJECT }}
+        run: |
+          node -e "const p=require('./package.json'); if (p.name!=='my-shop'||p.version!=='1.0.0') throw new Error('rename failed: '+p.name+'@'+p.version)"
+          grep -q '"My Shop' src/messages/en/metadata.json
+          test ! -f LICENSE
+
+      - name: Generators
+        working-directory: ${{ env.PROJECT }}
+        run: |
+          pnpm page pricing --nav
+          pnpm page blog "Blog" --loading
+          pnpm component Badge --test
+          pnpm api contact --post
+          pnpm locale add de
+
+      - name: Gates · build · runtime (generated code)
+        working-directory: ${{ env.PROJECT }}
+        run: pnpm check && pnpm build && pnpm check:runtime
+
+      - name: Locale remove
+        working-directory: ${{ env.PROJECT }}
+        run: pnpm locale remove de && pnpm check:i18n && pnpm typecheck && pnpm lint

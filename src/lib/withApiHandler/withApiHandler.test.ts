@@ -1,7 +1,8 @@
 import { NextRequest, NextResponse } from 'next/server';
-import { describe, expect, it } from 'vitest';
+import { afterEach, describe, expect, it, vi } from 'vitest';
 
-import { NotFoundError } from '@/lib/errors';
+import { errorReporting } from '@/lib/errorReporting';
+import { NotFoundError, NotImplementedError } from '@/lib/errors';
 import type { RateLimitResult } from '@/lib/rateLimit';
 import { withApiHandler } from '@/lib/withApiHandler';
 
@@ -103,5 +104,41 @@ describe('withApiHandler.preflight', () => {
     const res = handle(makeRequest('https://app.example.com'));
     expect(res.status).toBe(204);
     expect(res.headers.get('Access-Control-Allow-Origin')).toBe('https://app.example.com');
+  });
+  describe('control flow and reporting', () => {
+    afterEach(() => {
+      vi.restoreAllMocks();
+    });
+
+    it('re-throws Next.js control-flow errors instead of answering 500 (SPEC A3)', async () => {
+      const redirectErr = Object.assign(new Error('NEXT_REDIRECT'), {
+        digest: 'NEXT_REDIRECT;replace;/target;307;',
+      });
+      const capture = vi.spyOn(errorReporting, 'captureException');
+      const handle = withApiHandler({
+        handler: () => {
+          throw redirectErr;
+        },
+      });
+      await expect(handle(makeRequest())).rejects.toBe(redirectErr);
+      expect(capture).not.toHaveBeenCalled();
+    });
+
+    it('reports unknown errors and 5xx AppErrors, not expected 4xx/501', async () => {
+      const capture = vi.spyOn(errorReporting, 'captureException').mockImplementation(() => {});
+      const throwing = (err: unknown) =>
+        withApiHandler({
+          handler: () => {
+            throw err;
+          },
+        })(makeRequest());
+
+      await throwing(new NotFoundError('nope'));
+      await throwing(new NotImplementedError('off'));
+      expect(capture).not.toHaveBeenCalled();
+
+      await throwing(new Error('boom'));
+      expect(capture).toHaveBeenCalledTimes(1);
+    });
   });
 });

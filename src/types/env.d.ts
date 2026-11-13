@@ -13,8 +13,12 @@ declare global {
     interface ProcessEnv {
       readonly NODE_ENV: 'development' | 'production' | 'test';
 
-      /** Client application URL (metadataBase, canonical, sitemap, CSRF allowlist) */
-      readonly NEXT_PUBLIC_CLIENT_URL: string;
+      /**
+       * Client application URL (metadataBase, canonical, sitemap, CSRF allowlist).
+       * Required at runtime (Zod, src/configs/env/) but optional in the type:
+       * build tools and tests run without it — `urls.website` falls back.
+       */
+      readonly NEXT_PUBLIC_CLIENT_URL?: string;
 
       /** Server API URL (for SSR requests) */
       readonly NEXT_PUBLIC_SERVER_URL?: string;
@@ -39,6 +43,12 @@ declare global {
 
       /** Comma-separated IPs that bypass rate limiting */
       readonly RATE_LIMIT_BYPASS_IPS?: string;
+
+      /** 'off' → robots disallow all + empty sitemap (staging); Vercel previews are off automatically */
+      readonly INDEXING?: string;
+
+      /** Set by Vercel: 'production' | 'preview' | 'development' */
+      readonly VERCEL_ENV?: string;
 
       /** Shared secret for the /api/revalidate webhook (unset → 501) */
       readonly REVALIDATE_SECRET?: string;

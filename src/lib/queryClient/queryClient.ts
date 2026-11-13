@@ -23,7 +23,9 @@ function makeQueryClient() {
         staleTime: STALE_TIMES.standard,
         gcTime: 5 * 60 * 1000,
         refetchOnWindowFocus: false,
-        retry: 1,
+        // No retries on the server: a failing un-awaited prefetch would hold
+        // the stream for the retry delay. The browser retries once.
+        retry: typeof window === 'undefined' ? 0 : 1,
         // TanStack's default networkMode 'online' PAUSES requests while the
         // browser thinks it's offline — the promise neither resolves nor
         // rejects, so screens hold skeletons forever and submits spin
@@ -37,7 +39,7 @@ function makeQueryClient() {
       },
       dehydrate: {
         // The default ships only `success` queries. A server prefetch that is
-        // fired without `await` (see [locale]/page.tsx) is still `pending`
+        // fired without `await` (src/app/CLAUDE.md → Data in pages) is still `pending`
         // when `dehydrate()` runs and would be silently dropped — the client
         // would refetch after mount and the "SSR prefetch" would be a no-op.
         // Including pending queries streams the promise in the RSC payload
@@ -54,13 +56,13 @@ let browserQueryClient: QueryClient | undefined;
 
 /**
  * Returns a QueryClient instance.
- * On the server — deduplicates via React.cache() per request.
- * On the client — reuses the same singleton instance.
- *
- * `React.cache()` only works inside the React render path (Server
- * Components, generateMetadata). Calling `getQueryClient()` from a Route
- * Handler or Server Action creates a fresh client per call — fine for
- * one-off prefetching, but don't expect cross-call sharing there.
+ * - Server Components: one per request (`React.cache()`).
+ * - SSR of client components: React's client build has no request cache,
+ *   so each render gets a fresh client — correct, the data arrives through
+ *   HydrationBoundary anyway.
+ * - Browser: one singleton.
+ * Route Handlers / Server Actions (outside the render path) get a fresh
+ * client per call — fine for one-off prefetching, no cross-call sharing.
  */
 const getServerQueryClient = cache(() => makeQueryClient());
 

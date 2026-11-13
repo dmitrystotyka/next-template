@@ -1,6 +1,6 @@
 import { describe, expect, it } from 'vitest';
 
-import { isAbsoluteUrl, isAllowedOrigin, normalizeOrigin } from '@/lib/origin';
+import { isAbsoluteUrl, isAllowedOrigin, normalizeOrigin, stripQuery } from '@/lib/origin';
 
 describe('isAbsoluteUrl', () => {
   it('accepts http(s) URLs regardless of casing', () => {
@@ -45,5 +45,13 @@ describe('isAllowedOrigin', () => {
   it('rejects unparseable origins', () => {
     expect(isAllowedOrigin('null', allowlist)).toBe(false);
     expect(isAllowedOrigin('', allowlist)).toBe(false);
+  });
+});
+
+describe('stripQuery', () => {
+  it('drops the query string and hash, keeps the path', () => {
+    expect(stripQuery('https://api.test/users?token=secret#x')).toBe('https://api.test/users');
+    expect(stripQuery('/blog?name=foo')).toBe('/blog');
+    expect(stripQuery('/plain')).toBe('/plain');
   });
 });

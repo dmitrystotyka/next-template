@@ -27,8 +27,4 @@
   --input: oklch(92.78% 0.0058 264.5deg);
   --ring: oklch(62.32% 0.1879 259.8deg);
   --radius: 0.5rem;
-
-  /* Shared transition defaults (see .transition-custom-all in tailwind.css) */
-  --transition-duration: 0.3s;
-  --transition-timing: ease;
 }

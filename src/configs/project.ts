@@ -10,6 +10,17 @@ import type { ProjectConfig } from '@/types';
  * ('ru' | 'en'), not `string`. Invalid configs fail `pnpm typecheck`,
  * so no runtime validation is needed.
  */
+/**
+ * Search engines may index this deploy: the real production one only. Vercel
+ * previews/staging are production BUILDS too (VERCEL_ENV tells them apart);
+ * self-hosted staging sets INDEXING=off. Off → robots disallow all, empty sitemap.
+ */
+const indexable =
+  process.env.INDEXING !== 'off' &&
+  (process.env.VERCEL_ENV
+    ? process.env.VERCEL_ENV === 'production'
+    : process.env.NODE_ENV === 'production');
+
 export const projectConfig = {
   name: 'next-template',
 
@@ -34,6 +45,6 @@ export const projectConfig = {
   },
 
   /** Production flags. Disabled in dev to prevent crawling. */
-  sitemap: process.env.NODE_ENV === 'production',
-  robots: process.env.NODE_ENV === 'production',
+  sitemap: indexable,
+  robots: indexable,
 } as const satisfies ProjectConfig;

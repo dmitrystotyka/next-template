@@ -3,7 +3,9 @@ import { getTranslations } from 'next-intl/server';
 
 import { projectConfig } from '@/configs/project';
 
-export const alt = 'Open Graph preview';
+// Static export (no request/locale here) — the page-level share image alt is
+// translated in getBaseMetadata; this one only covers the bare file route.
+export const alt = projectConfig.name;
 export const size = { width: 1200, height: 630 };
 export const contentType = 'image/png';
 

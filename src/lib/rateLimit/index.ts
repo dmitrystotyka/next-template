@@ -6,10 +6,14 @@ export {
   rateLimitResponse,
   resolveClientIp,
 } from '@/lib/rateLimit/rateLimit';
+// `@public`: part of the module's API for app code, even while unused here
+// (knip.json → "tags": ["-public"]).
 export type {
+  /** @public */
   IdentityCheck,
   RateLimitConfig,
   RateLimitResult,
+  /** @public */
   RateLimitScope,
 } from '@/lib/rateLimit/rateLimit';
 

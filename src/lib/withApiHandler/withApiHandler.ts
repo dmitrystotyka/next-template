@@ -1,6 +1,8 @@
+import { unstable_rethrow } from 'next/navigation';
+
 import { cors, handlePreflight, toMutableResponse } from '@/lib/cors';
 import { errorReporting } from '@/lib/errorReporting';
-import { AppError, RateLimitError, toErrorResponse } from '@/lib/errors';
+import { isIncident, RateLimitError, toErrorResponse } from '@/lib/errors';
 import { rateLimitHeaders, type RateLimitResult } from '@/lib/rateLimit';
 
 import type { NextRequest } from 'next/server';
@@ -100,7 +102,11 @@ export function withApiHandler(options: Options) {
       if (rateInfo) response = attachRateHeaders(response, rateInfo);
       return applyCors(response, request);
     } catch (err) {
-      if (!(err instanceof AppError)) {
+      // Next.js control flow (notFound/redirect, dynamic-usage signals) must
+      // reach the framework — never map it to a 500 or report it.
+      unstable_rethrow(err);
+
+      if (isIncident(err)) {
         errorReporting.captureException(err instanceof Error ? err : new Error(String(err)), {
           source: 'route-handler',
           method: request.method,

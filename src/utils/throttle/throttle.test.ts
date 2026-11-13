@@ -48,4 +48,19 @@ describe('throttle', () => {
     vi.advanceTimersByTime(200);
     expect(fn).toHaveBeenCalledExactlyOnceWith('lead');
   });
+
+  it('drops a late trailing timer when a new leading call fires', () => {
+    const fn = vi.fn();
+    const throttled = throttle(fn, 100);
+
+    throttled('lead');
+    throttled('stale');
+    // The clock moves past the window but the timer has NOT run yet
+    // (throttled background tab / busy main thread).
+    vi.setSystemTime(Date.now() + 150);
+    throttled('fresh');
+    vi.runAllTimers();
+
+    expect(fn.mock.calls).toEqual([['lead'], ['fresh']]);
+  });
 });

@@ -1,7 +1,7 @@
 import { unstable_rethrow } from 'next/navigation';
 
 import { errorReporting } from '@/lib/errorReporting';
-import { AppError, type ErrorPayload, toErrorPayload } from '@/lib/errors';
+import { type ErrorPayload, isIncident, toErrorPayload } from '@/lib/errors';
 
 /**
  * Discriminated result returned by every wrapped Server Action.
@@ -52,7 +52,7 @@ export function withServerAction<Args extends unknown[], T>(
       // the official check (covers dynamic-usage/postpone signals too).
       unstable_rethrow(err);
 
-      if (!(err instanceof AppError)) {
+      if (isIncident(err)) {
         errorReporting.captureException(err instanceof Error ? err : new Error(String(err)), {
           source: 'server-action',
         });

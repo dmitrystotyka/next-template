@@ -1,18 +1,15 @@
-import { getTranslations } from 'next-intl/server';
+import { NotFoundContent } from '@/components/layouts/NotFoundContent';
 
 /**
- * Root-level 404 page — outside [locale] layout.
- * Only triggers if a request bypasses middleware (edge case).
- * Renders within app/layout.tsx so Tailwind is available.
- * Uses server-side getTranslations (works without NextIntlClientProvider).
+ * Root-level 404 — outside the `[locale]` layout (no NextIntlClientProvider,
+ * so server translations only). Reached by URLs the proxy matcher skips that
+ * no route serves, e.g. a missing `/assets/x.png`. Unknown `/api/*` URLs get
+ * a JSON 404 from `app/api/[...slug]/route.ts` instead.
  */
-async function RootNotFoundPage() {
-  const t = await getTranslations('translations.errors');
-
+function RootNotFoundPage() {
   return (
-    <main className="flex min-h-dvh flex-col items-center justify-center gap-2">
-      <h1 className="text-4xl font-bold">404</h1>
-      <p className="text-muted-foreground">{t('page_not_found')}</p>
+    <main id="main-content">
+      <NotFoundContent localized={false} />
     </main>
   );
 }

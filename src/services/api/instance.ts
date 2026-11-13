@@ -1,80 +1,83 @@
-import axios, { type AxiosInstance, type AxiosRequestConfig, type AxiosError } from 'axios';
-
-import { urls } from '@/configs/constants/urls';
-import { DEFAULT_TIMEOUT_MS } from '@/services/api/http';
+import { stripQuery } from '@/lib/origin';
+import { DEFAULT_TIMEOUT_MS, resolveApiUrl } from '@/services/api/http';
 import { logger } from '@/utils/logger';
 
 /**
- * Axios instance for the EXTERNAL backend (`baseURL` = `NEXT_PUBLIC_SERVER_URL/api`).
- * Own routes must be passed as ABSOLUTE URLs (`resolveAppUrl()`), otherwise
- * axios glues the relative path onto `baseURL`.
+ * Client-side transport on top of `fetch` — what every `queryFn` calls.
+ * Relative URLs resolve against the EXTERNAL backend
+ * (`NEXT_PUBLIC_SERVER_URL/api`); own routes are passed ABSOLUTE
+ * (`resolveAppUrl('/api/…')`). Server-side code uses `serverFetch` instead
+ * (ISR options, `server-only`).
  */
-export const API: AxiosInstance = axios.create({
-  ...(urls.server.api ? { baseURL: urls.server.api } : {}),
-  timeout: DEFAULT_TIMEOUT_MS,
-  headers: { 'Content-Type': 'application/json' },
-});
 
-// Request interceptor slot — add one only when it does something, e.g. auth:
-// API.interceptors.request.use((config) => {
-//   const token = getToken();
-//   if (token) config.headers.Authorization = `Bearer ${token}`;
-//   return config;
-// });
-
-// Never log raw response bodies — they may contain tokens, PII, or
-// internal stack traces. Log only status, method, URL, and a bounded
-// message length.
-const truncate = (value: unknown, max = 200): string => {
-  const s = typeof value === 'string' ? value : JSON.stringify(value ?? '');
-  return s.length > max ? `${s.slice(0, max)}…` : s;
+type RequestConfig = {
+  url: string;
+  method?: 'GET' | 'POST' | 'PUT' | 'PATCH' | 'DELETE';
+  /** JSON-serialized into the body. */
+  data?: unknown;
+  headers?: Record<string, string>;
 };
 
-API.interceptors.response.use(
-  (response) => response,
-  (error: AxiosError) => {
-    if (error.response) {
-      logger.error(
-        `API ${error.response.status}: ${error.config?.method?.toUpperCase()} ${error.config?.url}`,
-        { message: truncate(error.message) },
-      );
-    } else if (error.code === 'ECONNABORTED') {
-      logger.error(`API timeout: ${error.config?.url}`);
-    } else if (!isAbortError(error)) {
-      logger.error(`API network error: ${truncate(error.message)}`);
-    }
-
-    return Promise.reject(error);
-  },
-);
+/** Non-2xx response. `status` is the HTTP status, `body` the parsed error envelope (if JSON). */
+export class ApiRequestError extends Error {
+  constructor(
+    message: string,
+    readonly status: number,
+    readonly body: unknown = undefined,
+  ) {
+    super(message);
+    this.name = 'ApiRequestError';
+  }
+}
 
 /**
- * Typed helper for API requests.
- * Returns `data` from the response, unwrapping AxiosResponse.
- * Supports AbortController for request cancellation.
+ * Typed JSON request. Times out after `DEFAULT_TIMEOUT_MS`; `signal` (e.g.
+ * TanStack Query's) cancels it. Logs only incidents — 5xx and network
+ * failures, never 4xx (the caller's business) and never response bodies.
  *
  * @example
- * const users = await request<User[]>({ url: '/users', method: 'GET' });
- *
- * // With cancellation:
- * const controller = new AbortController();
- * const users = await request<User[]>({ url: '/users' }, controller.signal);
- * controller.abort(); // cancel the request
+ * const todos = await request<Todo[]>({ url: API_PATHS.todos }, signal);
+ * await request({ url: API_PATHS.todos, method: 'POST', data: { title } });
  */
-export async function request<T>(config: AxiosRequestConfig, signal?: AbortSignal): Promise<T> {
-  const response = await API.request<T>({
-    ...config,
-    ...(signal ? { signal } : {}),
-  });
-  return response.data;
+export async function request<T>(config: RequestConfig, signal?: AbortSignal): Promise<T> {
+  const { url, method = 'GET', data, headers } = config;
+  // Relative → the backend; no backend configured → a clear error, never a
+  // silent fallback onto this app's own origin (resolveApiUrl).
+  const target = resolveApiUrl(url);
+  const timeout = AbortSignal.timeout(DEFAULT_TIMEOUT_MS);
+
+  let response: Response;
+  try {
+    response = await fetch(target, {
+      method,
+      // Content-Type only with a body — on a GET it forces a CORS preflight.
+      headers:
+        data === undefined ? { ...headers } : { 'Content-Type': 'application/json', ...headers },
+      ...(data === undefined ? {} : { body: JSON.stringify(data) }),
+      signal: signal ? AbortSignal.any([signal, timeout]) : timeout,
+    });
+  } catch (error) {
+    if (!isAbortError(error)) logger.error(`API network error: ${method} ${stripQuery(target)}`);
+    throw error;
+  }
+
+  if (!response.ok) {
+    if (response.status >= 500)
+      logger.error(`API ${response.status}: ${method} ${stripQuery(target)}`);
+    const body: unknown = await response.json().catch(() => undefined);
+    throw new ApiRequestError(
+      `Request failed with status ${response.status}`,
+      response.status,
+      body,
+    );
+  }
+  if (response.status === 204) return undefined as T;
+  return (await response.json()) as T;
 }
 
-/** Type guard for checking if an error is an AxiosError. */
-export function isApiError(error: unknown): error is AxiosError {
-  return axios.isAxiosError(error);
-}
-
-/** Check if a caught error is from AbortController cancellation. */
+/** Check if a caught error is from AbortController cancellation or the timeout. */
 export function isAbortError(error: unknown): boolean {
-  return axios.isCancel(error);
+  return (
+    error instanceof DOMException && (error.name === 'AbortError' || error.name === 'TimeoutError')
+  );
 }

@@ -1,18 +1,18 @@
-import { urls } from '@/configs/constants/urls';
+import { urls } from '@/configs/urls';
 import { isAbsoluteUrl } from '@/lib/origin';
 
 /**
- * Transport policy shared by the axios instance, `serverFetch` and the
+ * Transport policy shared by `request()` (instance.ts), `serverFetch` and the
  * TanStack query definitions: ONE rule for base URLs and ONE timeout.
  */
 
-/** Shared request timeout (axios instance + serverFetch). */
+/** Shared request timeout (`request()` + serverFetch). */
 export const DEFAULT_TIMEOUT_MS = 15_000;
 
 /**
  * Resolve a path to one of this app's OWN routes (`/api/health`, Route
- * Handlers). Always absolute: the axios instance carries the external
- * `baseURL`, and axios glues RELATIVE paths onto it — an absolute URL is
+ * Handlers). Always absolute: `request()` resolves RELATIVE paths against the
+ * external backend — an absolute URL is
  * the only way to be sure a self-call never lands on the backend.
  *
  * - Browser: the current origin (correct on preview/LAN hosts where

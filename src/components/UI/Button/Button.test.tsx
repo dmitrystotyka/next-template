@@ -1,8 +1,10 @@
+// @vitest-environment jsdom
+
 import { render, screen } from '@testing-library/react';
 import userEvent from '@testing-library/user-event';
 import { describe, it, expect, vi } from 'vitest';
 
-import { Button } from '@/components/UI';
+import { Button } from '@/components/UI/Button';
 
 describe('Button', () => {
   it('renders children inside a <button> by default', () => {

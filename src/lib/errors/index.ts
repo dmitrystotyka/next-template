@@ -7,6 +7,7 @@ export {
   ConflictError,
   RateLimitError,
   NotImplementedError,
+  isIncident,
   toErrorPayload,
   toErrorResponse,
 } from '@/lib/errors/errors';

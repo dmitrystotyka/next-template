@@ -25,18 +25,12 @@ async function LocaleLayout({ children, params }: LocaleLayoutProps) {
   setRequestLocale(locale);
 
   // Ship only client-side namespaces — server-only ones (metadata) would
-  // otherwise be serialized into every page's RSC payload.
+  // otherwise be serialized into every page's RSC payload. (A namespace
+  // that fails to load throws in dev — src/services/i18n/request.ts.)
   const messages = await getMessages();
-  const clientEntries = clientNamespaces.map((ns) => {
-    const value = messages[ns as keyof Messages];
-    if (!value && process.env.NODE_ENV === 'development') {
-      // Fail loudly in dev: a missing namespace here means every client
-      // component silently falls back to raw keys.
-      throw new Error(`i18n: client namespace "${ns}" missing from messages for "${locale}"`);
-    }
-    return [ns, value] as const;
-  });
-  const clientMessages = Object.fromEntries(clientEntries.filter(([, v]) => v)) as Messages;
+  const clientMessages = Object.fromEntries(
+    clientNamespaces.map((ns) => [ns, messages[ns]]),
+  ) as Pick<Messages, (typeof clientNamespaces)[number]>;
 
   return (
     // `lang`/`dir` live on <html> in the root layout. When adding an RTL
@@ -47,6 +41,8 @@ async function LocaleLayout({ children, params }: LocaleLayoutProps) {
   );
 }
 
+// A no-op while the nonce CSP makes every page dynamic; keeps static
+// rendering possible for a project that drops per-request CSP.
 export function generateStaticParams() {
   return routing.locales.map((locale) => ({ locale }));
 }

@@ -2,20 +2,19 @@
  * Next.js 16 Middleware (proxy convention).
  *
  * In Next.js 16, `proxy.ts` replaces the legacy `middleware.ts` and always
- * runs on the Node.js runtime. The exported function name must match the
- * filename (`proxy`), and `config.matcher` controls which routes are
- * intercepted.
+ * runs on the Node.js runtime. Export a function named `proxy` (or a
+ * default export); `config.matcher` controls which routes are intercepted.
  *
  * Composition: rate limit (pages only) → CSP nonce onto REQUEST headers →
  * next-intl routing → CSP mirrored onto the response.
  *
- * @see https://nextjs.org/docs/app/building-your-application/routing/middleware
+ * @see https://nextjs.org/docs/app/api-reference/file-conventions/proxy
  */
 
 import { NextRequest } from 'next/server';
 import createMiddleware from 'next-intl/middleware';
 
-import { urls } from '@/configs/constants/urls';
+import { urls } from '@/configs/urls';
 import { normalizeOrigin } from '@/lib/origin';
 import {
   checkIdentity,
@@ -46,16 +45,25 @@ const RATE_LIMIT_RULES: ReadonlyArray<{ pattern: RegExp; config: RateLimitConfig
 const DEFAULT_RATE_LIMIT: RateLimitConfig = { limit: 100, windowSeconds: 60 };
 
 // One limiter PER RULE (index-aligned), never per config shape — two rules
-// with equal numbers must not share a bucket. Bounded: rules.length + 1.
+// with equal numbers must not share a bucket. Bounded: rules.length + 2.
 const ruleLimiters: ReadonlyArray<ReturnType<typeof createRateLimiter> | null> =
   RATE_LIMIT_RULES.map((rule) => (rule.config ? createRateLimiter(rule.config) : null));
 const defaultLimiter = createRateLimiter(DEFAULT_RATE_LIMIT);
 
-function pickLimiter(pathname: string) {
+// `<Link>` prefetches fire for every link in view — several per page. They get
+// their OWN, larger bucket instead of eating the navigation budget (users
+// behind one NAT would see false 429s). Never skipped: the header is
+// client-controlled, so a bot claiming "prefetch" is still limited.
+const prefetchLimiter = createRateLimiter({ limit: 300, windowSeconds: 60 });
+
+function pickLimiter(request: NextRequest) {
+  const { pathname } = request.nextUrl;
   for (const [index, rule] of RATE_LIMIT_RULES.entries()) {
     if (rule.pattern.test(pathname)) return ruleLimiters[index] ?? null;
   }
-  return defaultLimiter;
+  const isPrefetch =
+    request.headers.has('next-router-prefetch') || request.headers.get('purpose') === 'prefetch';
+  return isPrefetch ? prefetchLimiter : defaultLimiter;
 }
 
 // ─────────────────────────────────────────────────────────────────────────────
@@ -69,7 +77,12 @@ const ALLOWED_CONNECT = [urls.server.api, process.env.NEXT_PUBLIC_VITALS_ENDPOIN
   .map((value) => normalizeOrigin(value))
   .filter((value): value is string => Boolean(value));
 const ALLOWED_IMG: string[] = []; // e.g. 'https://images.unsplash.com'
-const ALLOWED_FONT = ['https://fonts.gstatic.com'];
+// Fonts: next/font self-hosts at build time — no third-party font origin.
+const ALLOWED_FONT: string[] = [];
+
+// React uses eval() in DEVELOPMENT only (rebuilding server error stacks in the
+// browser) — Next's CSP guide adds 'unsafe-eval' for dev, never for production.
+const DEV_SCRIPT_SRC = process.env.NODE_ENV === 'development' ? " 'unsafe-eval'" : '';
 
 // CSP violation reporting endpoint. Parsed here (not just validated) because
 // this module is evaluated at module scope, possibly before `validateEnv()`
@@ -109,7 +122,7 @@ const TRUSTED_TYPES_DIRECTIVES = [
  *
  * NOTE: a per-request nonce with `strict-dynamic` makes every matched page
  * effectively dynamic — a statically cached HTML shell would carry a stale
- * nonce. Keep this in mind before enabling `cacheComponents`.
+ * nonce. Why `cacheComponents` stays off: next.config.ts, SPEC.md R1.
  */
 function buildCsp(nonce: string, options: { https: boolean }): string {
   const connectSrc = ["'self'", ...ALLOWED_CONNECT].join(' ');
@@ -136,7 +149,7 @@ function buildCsp(nonce: string, options: { https: boolean }): string {
 
   const directives: string[] = [
     "default-src 'self'",
-    `script-src 'self' 'nonce-${nonce}' 'strict-dynamic'`,
+    `script-src 'self' 'nonce-${nonce}' 'strict-dynamic'${DEV_SCRIPT_SRC}`,
     styleSrc,
     `img-src ${imgSrc}`,
     `font-src ${fontSrc}`,
@@ -176,7 +189,7 @@ export async function proxy(request: NextRequest) {
   // budget. Don't short-circuit on the `next-action` header: it is
   // client-controlled. Identity unknown → `checkIdentity` skips (one shared
   // bucket would rate-limit the whole site as a single client).
-  const limiter = pickLimiter(request.nextUrl.pathname);
+  const limiter = pickLimiter(request);
   if (limiter) {
     const outcome = checkIdentity(request, limiter, { scope: 'page' });
     if (outcome.kind === 'checked' && !outcome.result.success) {
@@ -239,5 +252,5 @@ export const config = {
   // Extensionless metadata routes (manifest, OG images, icons) must also be
   // excluded or locale detection 307-redirects them into 404s.
   matcher:
-    '/((?!(?:api|trpc|_next|_vercel|assets)(?:/|$)|favicon\\.ico$|manifest\\.webmanifest$|sitemap\\.xml$|robots\\.txt$|opengraph-image|twitter-image|apple-icon|icon\\d?$|.*\\.(?:png|jpg|jpeg|gif|webp|avif|svg|ico|woff|woff2|ttf|otf|mp4|webm|xml|txt)$).*)',
+    '/((?!(?:api|_next|_vercel|assets)(?:/|$)|favicon\\.ico$|manifest\\.webmanifest$|sitemap\\.xml$|robots\\.txt$|opengraph-image|twitter-image|apple-icon|icon\\d?$|.*\\.(?:png|jpg|jpeg|gif|webp|avif|svg|ico|woff|woff2|ttf|otf|mp4|webm|xml|txt)$).*)',
 };

@@ -1,8 +1,10 @@
+// @vitest-environment jsdom
+
 import { render, screen } from '@testing-library/react';
 import userEvent from '@testing-library/user-event';
 import { describe, it, expect } from 'vitest';
 
-import { Input } from '@/components/UI';
+import { Input } from '@/components/UI/Input';
 
 describe('Input', () => {
   it('associates a label with the input via htmlFor/id', () => {

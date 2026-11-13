@@ -33,10 +33,6 @@ const eslintConfig = [
       '@typescript-eslint/no-unused-vars': 'off',
       'react/display-name': 'off',
 
-      // Type-aware rules (`no-floating-promises`, `no-misused-promises`,
-      // `no-unnecessary-condition`, `prefer-nullish-coalescing`, `prefer-optional-chain`)
-      // require `parserOptions.project` and are expensive for large repos.
-      // Enable them selectively if you wire up typed linting in CI.
       '@typescript-eslint/consistent-type-imports': [
         'warn',
         { prefer: 'type-imports', fixStyle: 'inline-type-imports' },
@@ -45,7 +41,7 @@ const eslintConfig = [
 
       // Disallow bare `console.*` — force all logging through @/utils/logger
       // so we get prefixes, child scopes, and production silencing for free.
-      'no-console': ['error', { allow: ['warn', 'error'] }],
+      'no-console': 'error',
 
       // Enforce stable import ordering: builtins → external → internal (@/) → relative.
       'import/order': [
@@ -87,11 +83,50 @@ const eslintConfig = [
     },
   },
   {
+    // App code (SPEC C1): only the @/ alias, named exports. Next file
+    // conventions are the exception below.
+    files: ['src/**/*.{ts,tsx}'],
+    rules: {
+      'no-restricted-imports': [
+        'error',
+        { patterns: [{ group: ['./*', '../*'], message: 'Import via the @/ alias (src/…).' }] },
+      ],
+      'import/no-default-export': 'error',
+    },
+  },
+  {
+    files: [
+      'src/app/**/{page,layout,loading,error,not-found,global-error,template,default,route,sitemap,robots,manifest,opengraph-image,twitter-image,icon,apple-icon}.{ts,tsx}',
+      'src/services/i18n/request.ts',
+    ],
+    rules: { 'import/no-default-export': 'off' },
+  },
+  {
+    // Type-aware rules where a forgotten `await` silently loses an error:
+    // Server Actions, route handlers, event handlers (`onSubmit={handleSubmit(…)}`).
+    // Tests are outside tsconfig.json — they are type-checked by tsconfig.test.json.
+    files: ['src/**/*.{ts,tsx}'],
+    ignores: ['**/*.{test,spec}.{ts,tsx}'],
+    languageOptions: {
+      parserOptions: { projectService: true, tsconfigRootDir: import.meta.dirname },
+    },
+    rules: {
+      '@typescript-eslint/no-floating-promises': 'error',
+      '@typescript-eslint/no-misused-promises': [
+        'error',
+        { checksVoidReturn: { attributes: false } },
+      ],
+      '@typescript-eslint/await-thenable': 'error',
+      '@typescript-eslint/switch-exhaustiveness-check': 'error',
+    },
+  },
+  {
     // Allow `console.*` in Node-only infra files where logger isn't available yet,
     // and in the logger implementation itself.
     files: [
       'next.config.ts',
-      'scripts/**/*.{js,mjs,ts}',
+      '.template/**/*.{js,mjs}',
+      'lint-staged.config.js',
       'vitest.config.ts',
       'vitest.setup.ts',
       'src/utils/logger.ts',
@@ -126,7 +161,14 @@ const eslintConfig = [
   },
   eslintConfigPrettier,
   {
-    ignores: ['node_modules/**', '.next/**', 'build/**', 'coverage/**', 'next-env.d.ts'],
+    ignores: [
+      'node_modules/**',
+      '.next/**',
+      'coverage/**',
+      '.vercel/**',
+      '.vitest/**',
+      'next-env.d.ts',
+    ],
   },
 ];
 

@@ -1,8 +1,7 @@
 'use client';
 
-import { useCallback, useEffect, useRef, useState } from 'react';
+import { useEffect, useLayoutEffect, useRef, useState } from 'react';
 
-import { useLatestRef } from '@/hooks/useLatestRef';
 import { debounce, type Debounced } from '@/utils/debounce';
 
 /**
@@ -36,16 +35,22 @@ export function useDebouncedCallback<Args extends unknown[]>(
   fn: (...args: Args) => void,
   delay: number,
 ): (...args: Args) => void {
-  const fnRef = useLatestRef(fn);
-  const debouncedRef = useRef<Debounced<Args> | null>(null);
+  // A ref, not `useEffectEvent`: the debounced function is called from
+  // event handlers, where Effect Events are not allowed. Layout effect →
+  // updated before any event of the committed render can fire.
+  const fnRef = useRef(fn);
+  useLayoutEffect(() => {
+    fnRef.current = fn;
+  });
 
+  const debouncedRef = useRef<Debounced<Args> | null>(null);
   useEffect(() => {
     const debounced = debounce((...args: Args) => fnRef.current(...args), delay);
     debouncedRef.current = debounced;
     // Cancel on unmount/delay change — a pending timer must never fire
     // into an unmounted component.
     return () => debounced.cancel();
-  }, [delay, fnRef]);
+  }, [delay]);
 
-  return useCallback((...args: Args) => debouncedRef.current?.(...args), []);
+  return (...args: Args) => debouncedRef.current?.(...args);
 }

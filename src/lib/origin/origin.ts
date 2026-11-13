@@ -32,3 +32,11 @@ export function isAllowedOrigin(origin: string, allowlist: Iterable<string>): bo
   }
   return false;
 }
+
+/**
+ * URL without its query string and hash — the only form that goes into logs
+ * and error reports (tokens and personal data ride in `?…`).
+ */
+export function stripQuery(url: string): string {
+  return url.split(/[?#]/, 1)[0] ?? '';
+}

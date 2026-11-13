@@ -1,8 +1,9 @@
 'use client';
 
 import dynamic from 'next/dynamic';
+import { useTranslations } from 'next-intl';
 
-import { LoadingIcon } from '@/components/icons';
+import { LoadingIcon } from '@/components/icons/LoadingIcon';
 
 import type { ComponentType } from 'react';
 
@@ -11,9 +12,17 @@ type DynamicOptions = {
   loading?: boolean;
   /** Enable SSR (default: false for client components) */
   ssr?: boolean;
-  /** Accessible name for the loading state — pass a translated string. */
-  label?: string;
 };
+
+/** Translated spinner — `dynamic()` options are module-level, so the label is read here. */
+function LazyFallback() {
+  const t = useTranslations('translations.shared');
+  return (
+    <div className="flex items-center justify-center p-4">
+      <LoadingIcon size={24} label={t('loading')} />
+    </div>
+  );
+}
 
 /**
  * Helper for dynamic imports with standardized loading states.
@@ -31,18 +40,10 @@ export function lazyLoad<P extends object>(
   importFn: () => Promise<{ default: ComponentType<P> }>,
   options: DynamicOptions = {},
 ): ComponentType<P> {
-  const { loading = true, ssr = false, label } = options;
+  const { loading = true, ssr = false } = options;
 
   return dynamic(importFn, {
     ssr,
-    ...(loading
-      ? {
-          loading: () => (
-            <div className="flex items-center justify-center p-4">
-              <LoadingIcon size={24} {...(label ? { label } : {})} />
-            </div>
-          ),
-        }
-      : {}),
+    ...(loading ? { loading: () => <LazyFallback /> } : {}),
   });
 }

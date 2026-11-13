@@ -1,56 +1,64 @@
 'use client';
 
-import { type RefObject, useEffect } from 'react';
+import { useEffect, useEffectEvent } from 'react';
 
-import { useLatestRef } from '@/hooks/useLatestRef';
+type Options = Pick<AddEventListenerOptions, 'capture' | 'passive' | 'once'>;
 
 /**
- * Attach an event listener with automatic cleanup.
+ * Attach an event listener with automatic cleanup. The handler always sees
+ * the latest props/state (`useEffectEvent`) without re-attaching.
  *
- * Overloads:
- * 1. `useEventListener('resize', fn)` — listens on `window`.
- * 2. `useEventListener('keydown', fn, ref)` — listens on `ref.current`.
- * 3. `useEventListener('visibilitychange', fn, documentRef)` — on `document`.
+ * Target:
+ * - omitted → `window`;
+ * - `'document'` → `document` (a string, so it is safe to pass during SSR);
+ * - an element or `null` — keep it in state via a callback ref, so a node
+ *   that mounts later still gets the listener:
  *
- * `options` is read at attach time via a ref, so passing an inline object
- * literal doesn't re-attach the listener every render. Only a change of
- * `capture` re-attaches (it affects WHICH listener the browser removes).
+ * @example
+ * useEventListener('resize', () => setWidth(window.innerWidth));
+ * useEventListener('visibilitychange', onVisibility, 'document');
+ *
+ * const [node, setNode] = useState<HTMLDivElement | null>(null);
+ * useEventListener('keydown', onKeyDown, node);
+ * <div ref={setNode} tabIndex={-1} />
  */
 export function useEventListener<K extends keyof WindowEventMap>(
   event: K,
   handler: (e: WindowEventMap[K]) => void,
   target?: undefined,
-  options?: AddEventListenerOptions | boolean,
-): void;
-export function useEventListener<K extends keyof HTMLElementEventMap, T extends HTMLElement>(
-  event: K,
-  handler: (e: HTMLElementEventMap[K]) => void,
-  target: RefObject<T | null>,
-  options?: AddEventListenerOptions | boolean,
+  options?: Options,
 ): void;
 export function useEventListener<K extends keyof DocumentEventMap>(
   event: K,
   handler: (e: DocumentEventMap[K]) => void,
-  target: RefObject<Document | null>,
-  options?: AddEventListenerOptions | boolean,
+  target: 'document',
+  options?: Options,
+): void;
+export function useEventListener<K extends keyof HTMLElementEventMap>(
+  event: K,
+  handler: (e: HTMLElementEventMap[K]) => void,
+  target: HTMLElement | null,
+  options?: Options,
 ): void;
 export function useEventListener(
   event: string,
   handler: (e: Event) => void,
-  target?: RefObject<EventTarget | null>,
-  options?: AddEventListenerOptions | boolean,
+  target?: HTMLElement | 'document' | null,
+  { capture = false, passive, once }: Options = {},
 ): void {
-  const handlerRef = useLatestRef(handler);
-  const optionsRef = useLatestRef(options);
-  const capture = typeof options === 'boolean' ? options : (options?.capture ?? false);
+  const onEvent = useEffectEvent((e: Event) => handler(e));
 
   useEffect(() => {
-    const node: EventTarget | null = target ? target.current : window;
+    const node: EventTarget | null =
+      target === undefined ? window : target === 'document' ? document : target;
     if (!node) return;
 
-    const listener = (e: Event) => handlerRef.current(e);
-    const opts = optionsRef.current;
+    const listener = (e: Event) => onEvent(e);
+    const opts: AddEventListenerOptions = { capture };
+    if (passive !== undefined) opts.passive = passive;
+    if (once !== undefined) opts.once = once;
+
     node.addEventListener(event, listener, opts);
-    return () => node.removeEventListener(event, listener, opts);
-  }, [event, target, capture, handlerRef, optionsRef]);
+    return () => node.removeEventListener(event, listener, { capture });
+  }, [event, target, capture, passive, once]);
 }

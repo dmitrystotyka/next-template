@@ -37,6 +37,12 @@ export abstract class AppError extends Error {
   /** Machine-readable details safe to send to the client. */
   readonly details?: Readonly<Record<string, unknown>>;
 
+  /**
+   * Client-facing message when `message` is for logs only (e.g. it names an
+   * upstream URL/status). `toErrorPayload` prefers it.
+   */
+  readonly publicMessage?: string;
+
   constructor(message: string, details?: Readonly<Record<string, unknown>>) {
     super(message);
     this.name = this.constructor.name;
@@ -101,12 +107,22 @@ export function toErrorPayload(error: unknown): ErrorPayload {
   if (error instanceof AppError) {
     return {
       code: error.code,
-      message: error.message,
+      message: error.publicMessage ?? error.message,
       ...(error.details ? { details: error.details } : {}),
     };
   }
 
   return { code: 'INTERNAL', message: 'Internal Server Error' };
+}
+
+/**
+ * Should a caught error be REPORTED (errorReporting)? Unknown errors and
+ * server-side AppErrors (5xx — e.g. a failing upstream) are incidents;
+ * expected 4xx and 501 (feature not configured) are not.
+ */
+export function isIncident(error: unknown): boolean {
+  if (!(error instanceof AppError)) return true;
+  return error.status >= 500 && error.status !== 501;
 }
 
 /**

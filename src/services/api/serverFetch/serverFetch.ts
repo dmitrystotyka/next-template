@@ -1,6 +1,7 @@
 import 'server-only';
 
 import { AppError, type AppErrorCode } from '@/lib/errors';
+import { stripQuery } from '@/lib/origin';
 import { DEFAULT_TIMEOUT_MS, resolveApiUrl } from '@/services/api/http';
 import { logger } from '@/utils/logger';
 
@@ -11,7 +12,7 @@ import { logger } from '@/utils/logger';
  * Use this in Server Components and Route Handlers when you want caching,
  * tag-based revalidation, or `cache: 'force-cache' | 'no-store'`.
  *
- * Use the axios `request()` helper in `instance.ts` for client-side calls
+ * Use `request()` from `instance.ts` for client-side calls
  * (TanStack queries) or when you specifically need interceptors.
  */
 type ServerFetchOptions = Omit<RequestInit, 'body' | 'signal'> & {
@@ -54,19 +55,25 @@ function codeForStatus(status: number): AppErrorCode {
 
 /**
  * Extends `AppError` so an upstream failure surfaced through a Route Handler
- * keeps its real status and a matching `code` instead of collapsing into a
- * generic 500.
+ * keeps a meaningful status and `code` instead of collapsing into a generic
+ * 500. `message` (upstream URL/status) is for logs; clients get a constant
+ * `publicMessage`. Upstream 401/403 mean OUR credentials are wrong — the
+ * visitor gets 502, not a misleading "unauthorized". 5xx are reported as
+ * incidents by the wrappers (`isIncident` in `@/lib/errors`).
  */
 export class ServerFetchError extends AppError {
   readonly status: number;
   readonly code: AppErrorCode;
   readonly url: string;
+  readonly upstreamStatus: number;
+  override readonly publicMessage = 'Upstream request failed';
 
   constructor(message: string, init: { status: number; url: string }) {
     super(message);
-    this.status = init.status;
-    this.code = codeForStatus(init.status);
-    this.url = init.url;
+    this.upstreamStatus = init.status;
+    this.status = init.status === 401 || init.status === 403 ? 502 : init.status;
+    this.code = codeForStatus(this.status);
+    this.url = stripQuery(init.url); // reported with the error — never the query
   }
 }
 
@@ -154,7 +161,7 @@ export async function serverFetch<T>(path: string, options: ServerFetchOptions =
     // log it as a network failure.
     const isCallerAbort = callerSignal?.aborted ?? false;
     if (!(err instanceof ServerFetchError) && !isCallerAbort) {
-      logger.error(`serverFetch network error: ${url}`, err);
+      logger.error(`serverFetch network error: ${stripQuery(url)}`, err);
     }
     throw err;
   }

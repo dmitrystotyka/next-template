@@ -17,7 +17,8 @@ type InputProps = React.InputHTMLAttributes<HTMLInputElement> & {
 function Input({
   className,
   containerClassName,
-  type,
+  // Explicit default: an implicit type is an html-validate error (no-implicit-input-type).
+  type = 'text',
   ref,
   id,
   error,

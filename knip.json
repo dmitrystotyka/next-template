@@ -2,25 +2,19 @@
   "$schema": "https://unpkg.com/knip@6/schema.json",
   "entry": [
     "src/app/**/{page,layout,loading,error,not-found,route,sitemap,robots,manifest,opengraph-image,twitter-image,icon,apple-icon,global-error,default,template}.{ts,tsx}",
-    "src/services/i18n/request.ts"
-  ],
-  "project": ["src/**/*.{ts,tsx,css,scss,sass}", "scripts/**/*.{ts,js,mjs}"],
-  "ignore": [
-    "src/hooks/**",
-    "src/components/UI/**",
-    "src/components/icons/**",
-    "src/components/layouts/ErrorBoundary.tsx",
+    "src/services/i18n/request.ts",
+    "src/types/next-intl.ts",
+    "src/hooks/{*.ts,*/index.ts}",
+    "src/lib/*/index.ts",
+    "src/lib/rateLimit/rateLimitAction.ts",
     "src/lib/lazyLoad.tsx",
-    "src/types/**",
-    "src/utils/**",
-    "src/services/api/cache.ts",
-    "src/services/api/paths.ts"
+    "src/services/api/{cache,paths,queries}.ts",
+    "src/services/api/serverFetch/index.ts",
+    "src/configs/featureFlags.ts",
+    "src/components/layouts/ErrorBoundary.tsx",
+    "src/components/UI/{*.tsx,*/index.ts}"
   ],
+  "project": ["src/**/*.{ts,tsx,css}", ".template/**/*.mjs"],
   "ignoreExportsUsedInFile": true,
-  "rules": {
-    "exports": "warn",
-    "types": "warn",
-    "nsExports": "warn",
-    "nsTypes": "warn"
-  }
+  "tags": ["-public"]
 }

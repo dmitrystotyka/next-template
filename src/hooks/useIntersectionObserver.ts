@@ -1,43 +1,49 @@
 'use client';
 
-import { type RefObject, useEffect, useState } from 'react';
+import { useEffect, useState } from 'react';
 
-type Options = IntersectionObserverInit & {
+type Options = Omit<IntersectionObserverInit, 'threshold'> & {
+  threshold?: number | number[];
   /** Disconnect after the first intersection (useful for lazy loading). */
   freezeOnceVisible?: boolean;
 };
 
-type IntersectionResult = {
+type IntersectionResult<T extends Element> = {
+  /** Callback ref — attach to the observed element (works when it mounts later). */
+  ref: (node: T | null) => void;
   entry: IntersectionObserverEntry | null;
   isIntersecting: boolean;
 };
 
 /**
- * Subscribe to `IntersectionObserver` for a ref'd element.
+ * Subscribe to `IntersectionObserver` for one element.
  *
  * @example
- * const ref = useRef<HTMLDivElement>(null);
- * const { isIntersecting } = useIntersectionObserver(ref, { threshold: 0.2 });
+ * const { ref, isIntersecting } = useIntersectionObserver<HTMLDivElement>({ threshold: 0.2 });
+ * <div ref={ref}>{isIntersecting ? <Chart /> : null}</div>
  */
-export function useIntersectionObserver<T extends Element>(
-  ref: RefObject<T | null>,
-  { freezeOnceVisible = false, root = null, rootMargin, threshold }: Options = {},
-): IntersectionResult {
+export function useIntersectionObserver<T extends Element>({
+  freezeOnceVisible = false,
+  root = null,
+  rootMargin,
+  threshold,
+}: Options = {}): IntersectionResult<T> {
+  const [node, setNode] = useState<T | null>(null);
   const [entry, setEntry] = useState<IntersectionObserverEntry | null>(null);
   const frozen = (entry?.isIntersecting ?? false) && freezeOnceVisible;
 
   // `threshold` may be an inline array literal — a fresh reference every
-  // render. Key the effect on its VALUE so the observer isn't torn down
-  // and recreated each render.
-  const thresholdKey = JSON.stringify(threshold);
+  // render. Key the effect on its VALUE so the observer isn't recreated.
+  const thresholdKey = JSON.stringify(threshold ?? 0);
 
   useEffect(() => {
-    const node = ref.current;
     if (!node || frozen || typeof IntersectionObserver === 'undefined') return;
 
-    const init: IntersectionObserverInit = { root };
+    const init: IntersectionObserverInit = {
+      root,
+      threshold: JSON.parse(thresholdKey) as number | number[],
+    };
     if (rootMargin !== undefined) init.rootMargin = rootMargin;
-    if (threshold !== undefined) init.threshold = threshold;
 
     const observer = new IntersectionObserver(([next]) => {
       if (next) setEntry(next);
@@ -45,8 +51,7 @@ export function useIntersectionObserver<T extends Element>(
 
     observer.observe(node);
     return () => observer.disconnect();
-    // eslint-disable-next-line react-hooks/exhaustive-deps -- thresholdKey stands in for threshold
-  }, [ref, root, rootMargin, thresholdKey, frozen]);
+  }, [node, root, rootMargin, thresholdKey, frozen]);
 
-  return { entry, isIntersecting: entry?.isIntersecting ?? false };
+  return { ref: setNode, entry, isIntersecting: entry?.isIntersecting ?? false };
 }

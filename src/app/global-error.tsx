@@ -14,15 +14,15 @@ import { errorReporting } from '@/lib/errorReporting';
  * - i18n is unavailable (layout is broken) — text is hardcoded and the
  *   markup stays inline-styled: the app shell (Tailwind CSS included)
  *   cannot be trusted at this point, so no shared ErrorState here.
- * - `reset()` re-renders the root layout segment to attempt recovery.
+ * - `retry()` (Next 16.3+) re-fetches and re-renders the root segment.
  */
 
 type GlobalErrorProps = {
   error: Error & { digest?: string };
-  reset: () => void;
+  retry: () => void;
 };
 
-function GlobalError({ error, reset }: GlobalErrorProps) {
+function GlobalError({ error, retry }: GlobalErrorProps) {
   // The worst failures land here — without this hook they'd be invisible
   // to telemetry.
   useEffect(() => {
@@ -31,7 +31,9 @@ function GlobalError({ error, reset }: GlobalErrorProps) {
 
   return (
     <html lang="en">
-      <head />
+      <head>
+        <title>Something went wrong</title>
+      </head>
       <body
         style={{
           display: 'flex',
@@ -47,7 +49,7 @@ function GlobalError({ error, reset }: GlobalErrorProps) {
           backgroundColor: '#fff',
         }}
       >
-        <h2 style={{ fontSize: '1.5rem', fontWeight: 600, margin: 0 }}>Something went wrong</h2>
+        <h1 style={{ fontSize: '1.5rem', fontWeight: 600, margin: 0 }}>Something went wrong</h1>
 
         {process.env.NODE_ENV === 'development' && error.message && (
           <pre
@@ -68,7 +70,8 @@ function GlobalError({ error, reset }: GlobalErrorProps) {
         )}
 
         <button
-          onClick={reset}
+          type="button"
+          onClick={() => retry()}
           style={{
             padding: '10px 24px',
             borderRadius: '8px',

@@ -1,9 +1,9 @@
-// @vitest-environment node
 import { revalidatePath, revalidateTag } from 'next/cache';
 import { NextRequest } from 'next/server';
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
 
 import { POST } from '@/app/api/revalidate/route';
+import { projectConfig } from '@/configs/project';
 
 vi.mock('next/cache', () => ({
   revalidateTag: vi.fn(),
@@ -29,6 +29,7 @@ function post(url: string, init: { headers?: Record<string, string>; body?: unkn
 describe('POST /api/revalidate', () => {
   beforeEach(() => {
     vi.stubEnv('REVALIDATE_SECRET', SECRET);
+    vi.stubEnv('TRUSTED_PROXY_HOPS', '1'); // x-real-ip counts only behind a declared proxy
   });
 
   afterEach(() => {
@@ -75,16 +76,18 @@ describe('POST /api/revalidate', () => {
     expect(revalidateTag).toHaveBeenCalledWith('post:hello', 'max');
   });
 
-  it('revalidates paths through the [locale] segment so every locale is covered', async () => {
+  it('revalidates every locale as a literal destination path', async () => {
     const res = await post('/api/revalidate', {
       headers: { 'x-revalidate-secret': SECRET },
       body: { paths: ['/blog', '/'] },
     });
     expect(res.status).toBe(200);
-    expect(revalidatePath).toHaveBeenCalledWith('/[locale]/blog', 'page');
-    expect(revalidatePath).toHaveBeenCalledWith('/[locale]', 'page');
+    for (const locale of projectConfig.i18n.locales) {
+      expect(revalidatePath).toHaveBeenCalledWith(`/${locale}/blog`);
+      expect(revalidatePath).toHaveBeenCalledWith(`/${locale}`);
+    }
     await expect(res.json()).resolves.toMatchObject({
-      revalidated: { paths: ['/blog', '/'], locales: ['ru', 'en'] },
+      revalidated: { paths: ['/blog', '/'], locales: [...projectConfig.i18n.locales] },
     });
   });
 
@@ -95,5 +98,19 @@ describe('POST /api/revalidate', () => {
     });
     expect(res.status).toBe(400);
     expect(revalidatePath).not.toHaveBeenCalled();
+  });
+
+  it('rejects protocol-relative paths and oversized target lists', async () => {
+    const protocolRelative = await post('/api/revalidate', {
+      headers: { 'x-revalidate-secret': SECRET },
+      body: { paths: ['//evil.example'] },
+    });
+    const tooMany = await post('/api/revalidate', {
+      headers: { 'x-revalidate-secret': SECRET },
+      body: { tags: Array.from({ length: 51 }, (_, i) => `t${i}`) },
+    });
+    expect(protocolRelative.status).toBe(400);
+    expect(tooMany.status).toBe(400);
+    expect(revalidateTag).not.toHaveBeenCalled();
   });
 });

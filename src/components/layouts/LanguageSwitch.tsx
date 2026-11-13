@@ -1,9 +1,9 @@
 'use client';
 
-import { cva, type VariantProps } from 'class-variance-authority';
 import { useLocale, useTranslations } from 'next-intl';
 
 import { localeFlags } from '@/components/layouts/localeFlags';
+import { VisuallyHidden } from '@/components/UI/VisuallyHidden';
 import { cn } from '@/lib/cn';
 import { locales } from '@/services/i18n/constants';
 import { Link, usePathname } from '@/services/i18n/navigation';
@@ -11,46 +11,20 @@ import { Link, usePathname } from '@/services/i18n/navigation';
 // Module-level: the locale list is static config, no need to re-check per render.
 const hasMultipleLocales = locales.length > 1;
 
-const itemVariants = cva(
-  'inline-flex items-center gap-1.5 rounded-lg px-3 py-1.5 text-sm font-medium transition-colors',
-  {
-    variants: {
-      variant: {
-        /** Semantic tokens — for the light app chrome (Header). */
-        default: '',
-        /** White-on-dark — for surfaces with their own dark background (demo hero). */
-        inverse: '',
-      },
-      active: { true: '', false: '' },
-    },
-    compoundVariants: [
-      { variant: 'default', active: true, class: 'bg-accent text-foreground ring-1 ring-border' },
-      {
-        variant: 'default',
-        active: false,
-        class: 'text-muted-foreground hover:bg-accent hover:text-foreground',
-      },
-      { variant: 'inverse', active: true, class: 'bg-white/15 text-white ring-1 ring-white/20' },
-      {
-        variant: 'inverse',
-        active: false,
-        class: 'text-slate-400 hover:bg-white/5 hover:text-white',
-      },
-    ],
-    defaultVariants: { variant: 'default', active: false },
-  },
-);
+/** "English", "Русский" — each language in its own words (no message keys to keep in sync). */
+const nativeName = (locale: string): string =>
+  new Intl.DisplayNames([locale], { type: 'language' }).of(locale) ?? locale;
 
-type LanguageSwitchProps = Pick<VariantProps<typeof itemVariants>, 'variant'> & {
+type LanguageSwitchProps = {
   className?: string;
 };
 
 /**
  * Locale switcher — links to the SAME pathname in every other locale.
- * Mounted in the Header; the demo hero mounts a second, `inverse` one.
- * Renders nothing for single-locale projects.
+ * Mounted in the Header. Renders nothing for single-locale projects.
+ * Screen readers hear the language name, not spelled-out letters ("E N").
  */
-export function LanguageSwitch({ variant, className }: LanguageSwitchProps) {
+export function LanguageSwitch({ className }: LanguageSwitchProps) {
   const currentLocale = useLocale();
   const t = useTranslations('translations.shared');
   const pathname = usePathname();
@@ -65,7 +39,13 @@ export function LanguageSwitch({ variant, className }: LanguageSwitchProps) {
           <Link
             href={pathname}
             locale={locale}
-            className={itemVariants({ variant, active })}
+            hrefLang={locale}
+            className={cn(
+              'inline-flex items-center gap-1.5 rounded-lg px-3 py-1.5 text-sm font-medium transition-colors',
+              active
+                ? 'bg-accent text-foreground ring-1 ring-border'
+                : 'text-muted-foreground hover:bg-accent hover:text-foreground',
+            )}
             key={locale}
             // 'true', not 'page': the link points at the SAME page in another
             // locale, so "current page" would be misleading — this marks the
@@ -73,7 +53,8 @@ export function LanguageSwitch({ variant, className }: LanguageSwitchProps) {
             aria-current={active ? 'true' : undefined}
           >
             {localeFlags[locale]}
-            {locale.toUpperCase()}
+            <span aria-hidden="true">{locale.toUpperCase()}</span>
+            <VisuallyHidden lang={locale}>{nativeName(locale)}</VisuallyHidden>
           </Link>
         );
       })}

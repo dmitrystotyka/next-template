@@ -73,9 +73,15 @@ describe('resolveClientIp', () => {
     vi.unstubAllEnvs();
   });
 
-  it('falls back to x-real-ip when TRUSTED_PROXY_HOPS is unset', () => {
+  it('ignores x-real-ip when no proxy is declared (client-controlled header)', () => {
+    vi.stubEnv('NODE_ENV', 'production');
     const headers = new Headers({ 'x-real-ip': '9.9.9.9', 'x-forwarded-for': '6.6.6.6' });
-    expect(resolveClientIp(headers)).toBe('9.9.9.9');
+    expect(resolveClientIp(headers)).toBeNull();
+  });
+
+  it('falls back to x-real-ip behind a declared proxy without XFF', () => {
+    vi.stubEnv('TRUSTED_PROXY_HOPS', '1');
+    expect(resolveClientIp(new Headers({ 'x-real-ip': '9.9.9.9' }))).toBe('9.9.9.9');
   });
 
   it('takes the rightmost XFF hop when TRUSTED_PROXY_HOPS=1', () => {
@@ -103,8 +109,9 @@ describe('resolveClientIp', () => {
 
   it('ignores malformed TRUSTED_PROXY_HOPS values', () => {
     vi.stubEnv('TRUSTED_PROXY_HOPS', 'abc');
+    vi.stubEnv('NODE_ENV', 'production');
     const headers = new Headers({ 'x-forwarded-for': '6.6.6.6', 'x-real-ip': '9.9.9.9' });
-    expect(resolveClientIp(headers)).toBe('9.9.9.9');
+    expect(resolveClientIp(headers)).toBeNull();
   });
 
   it('rejects junk that does not look like an IP', () => {
@@ -164,6 +171,11 @@ describe('rateLimitHeaders / rateLimitResponse', () => {
 });
 
 describe('checkIdentity', () => {
+  // x-real-ip is an identity only behind a declared proxy.
+  beforeEach(() => {
+    vi.stubEnv('TRUSTED_PROXY_HOPS', '1');
+  });
+
   afterEach(() => {
     vi.unstubAllEnvs();
     vi.restoreAllMocks();

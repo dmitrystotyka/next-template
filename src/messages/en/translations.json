@@ -3,11 +3,10 @@
     "loading": "Loading...",
     "skip_to_content": "Skip to main content",
     "close": "Close",
-    "opens_in_new_tab": "(opens in new tab)",
+    "notifications": "Notifications",
     "language": "Language",
     "nav_main": "Main",
-    "nav_home": "Home",
-    "nav_template": "Template"
+    "nav_home": "Home"
   },
   "errors": {
     "something_went_wrong": "Something went wrong",

@@ -25,6 +25,20 @@ describe('createMetadata', () => {
     expect(meta.twitter?.title).toBe('Global Title');
   });
 
+  it('carries the generated share image on every page (SPEC O3)', async () => {
+    // A page-level openGraph object replaces the parent's — without an
+    // explicit reference the app/opengraph-image.tsx picture is dropped.
+    const meta = await createMetadata({ title: 'Page Title', path: '/page' });
+    expect(JSON.stringify(meta.openGraph)).toContain('/opengraph-image');
+    expect(JSON.stringify(meta.twitter)).toContain('/opengraph-image');
+  });
+
+  it('lets a per-page preview replace the default share image', async () => {
+    const meta = await createMetadata({ preview: '/assets/img/previews/about.webp' });
+    expect(JSON.stringify(meta.openGraph)).toContain('about.webp');
+    expect(JSON.stringify(meta.openGraph)).not.toContain('/opengraph-image');
+  });
+
   it('keeps a page title as a plain string so the parent template applies', async () => {
     const meta = await createMetadata({ title: 'Page Title', path: '/page' });
     expect(meta.title).toBe('Page Title');
@@ -64,11 +78,33 @@ describe('createMetadata', () => {
   });
 
   it('resolves preview paths against the site URL and keeps absolute URLs', async () => {
+    type Image = { url: string; alt?: string };
     const fromPath = await createMetadata({ preview: '/assets/img/p.webp' });
-    expect((fromPath.openGraph?.images as string[])[0]).toMatch(/^http.*\/assets\/img\/p\.webp$/);
+    expect((fromPath.openGraph?.images as Image[])[0]?.url).toMatch(
+      /^http.*\/assets\/img\/p\.webp$/,
+    );
 
-    const absolute = await createMetadata({ preview: 'https://cdn.example.com/p.webp' });
-    expect((absolute.openGraph?.images as string[])[0]).toBe('https://cdn.example.com/p.webp');
-    expect((absolute.twitter?.images as string[])[0]).toBe('https://cdn.example.com/p.webp');
+    const absolute = await createMetadata({
+      title: 'Page',
+      preview: 'https://cdn.example.com/p.webp',
+    });
+    expect((absolute.openGraph?.images as Image[])[0]).toEqual({
+      url: 'https://cdn.example.com/p.webp',
+      alt: 'Page',
+    });
+    expect((absolute.twitter?.images as Image[])[0]?.url).toBe('https://cdn.example.com/p.webp');
+  });
+
+  it('gives the default share image an alt and an Open Graph locale (en_US)', async () => {
+    const meta = await createMetadata();
+    expect(JSON.stringify(meta.openGraph)).toContain('"alt":"Global Title"');
+    expect(meta.openGraph).toMatchObject({ locale: 'en_US' });
+  });
+
+  it('drops canonical, hreflang and og:url for non-indexable pages (404)', async () => {
+    const meta = await createMetadata({ title: 'Not found', indexable: false });
+    expect(meta.alternates).toBeNull();
+    expect(meta.openGraph).not.toHaveProperty('url');
+    expect(meta.robots).toEqual({ index: false, follow: false });
   });
 });

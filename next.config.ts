@@ -19,6 +19,39 @@ function lanDevOrigins(): string[] {
     .map((iface) => (iface as os.NetworkInterfaceInfo).address);
 }
 
+/**
+ * Powerful browser APIs, denied by default. Allow per feature with `self` or
+ * an origin, e.g. `camera=(self)` for a video-call page. Only features
+ * Chromium recognizes — an unknown one (`interest-cohort`, `battery`,
+ * `document-domain`) logs "Unrecognized feature" on every page.
+ * `publickey-credentials-get=()` blocks passkeys/WebAuthn — switch it to
+ * `(self)` when you add passkey sign-in.
+ */
+const PERMISSIONS_POLICY = [
+  'accelerometer=()',
+  'autoplay=(self)',
+  'camera=()',
+  'display-capture=()',
+  'encrypted-media=()',
+  'fullscreen=(self)',
+  'geolocation=()',
+  'gyroscope=()',
+  'hid=()',
+  'idle-detection=()',
+  'magnetometer=()',
+  'microphone=()',
+  'midi=()',
+  'payment=()',
+  'picture-in-picture=(self)',
+  'publickey-credentials-get=()',
+  'screen-wake-lock=()',
+  'serial=()',
+  'sync-xhr=()',
+  'usb=()',
+  'web-share=(self)',
+  'xr-spatial-tracking=()',
+].join(', ');
+
 const nextConfig: NextConfig = {
   reactStrictMode: true,
   poweredByHeader: false,
@@ -26,38 +59,29 @@ const nextConfig: NextConfig = {
   ...(isDev ? { allowedDevOrigins: lanDevOrigins() } : {}),
 
   images: {
-    // Serve modern formats when the browser advertises support.
-    // Next.js picks AVIF → WebP → original in that order.
+    // AVIF → WebP → original, by what the browser advertises. Size buckets
+    // and `minimumCacheTTL` keep Next 16's defaults (4 h TTL, no 16px bucket).
     formats: ['image/avif', 'image/webp'],
-    // Cache optimized images for 1 hour minimum at the edge.
-    minimumCacheTTL: 60 * 60,
-    // Explicit size buckets keep the srcset compact and predictable.
-    deviceSizes: [640, 750, 828, 1080, 1200, 1920, 2048, 3840],
-    imageSizes: [16, 32, 48, 64, 96, 128, 256, 384],
     remotePatterns: [
       // Add allowed image domains here:
       // { protocol: 'https', hostname: 'example.com', pathname: '/images/**' },
     ],
   },
 
-  // React Compiler auto-memoizes components — opt in and drop most useMemo/useCallback.
-  // Requires `babel-plugin-react-compiler`. Disable if you hit perf regressions.
-  // @see https://react.dev/learn/react-compiler
+  // React Compiler auto-memoizes components — no useMemo/useCallback by hand.
+  // Requires `babel-plugin-react-compiler`. @see https://react.dev/learn/react-compiler
   reactCompiler: true,
 
-  // Cache Components (Next.js 16+) — static shell is served instantly and
-  // dynamic parts stream in. Replaces the former `experimental.ppr: 'incremental'`.
-  // Enabling this is an all-or-nothing switch: every dynamic data access must
-  // be wrapped in <Suspense> or the build will fail. Opt in once the app is
-  // audited for Suspense boundaries.
-  // @see https://nextjs.org/docs/app/getting-started/cache-components
+  // Cache Components — OFF on purpose (verified on Next 16.3.8, SPEC.md R1,
+  // src/app/CLAUDE.md → Gotchas). The code is ready for it (no segment configs, request-
+  // time data behind <Suspense> + connection()), and the build passes with it
+  // on, but every route then ships as a partial prerender: the streamed shell
+  // commits HTTP 200 before the [...rest] catch-all can call notFound(), so
+  // missing URLs answer 200 + noindex instead of a real 404. The per-request
+  // CSP nonce also means documents can never be served from a static shell
+  // anyway. Turn it on only if you accept soft 404s, or once Next can keep
+  // the status of a blocking catch-all.
   // cacheComponents: true,
-
-  experimental: {
-    serverActions: {
-      bodySizeLimit: '2mb',
-    },
-  },
 
   async headers() {
     return [
@@ -67,61 +91,21 @@ const nextConfig: NextConfig = {
           { key: 'X-Frame-Options', value: 'SAMEORIGIN' },
           { key: 'X-Content-Type-Options', value: 'nosniff' },
           { key: 'Referrer-Policy', value: 'strict-origin-when-cross-origin' },
-          { key: 'X-DNS-Prefetch-Control', value: 'on' },
           // HSTS in production ONLY: Safari honours it on http://localhost
           // and pins the origin — dev then collapses into TLS errors that
           // look like a CSS bug (Chromium exempts localhost, so it "only
           // breaks for one person on the team").
-          ...(isDev
-            ? []
-            : [
-                {
-                  key: 'Strict-Transport-Security',
-                  value: 'max-age=63072000; includeSubDomains; preload',
-                },
-              ]),
-          // Cross-origin isolation — blocks cross-origin popups from sharing a
-          // browsing context group. Required for SharedArrayBuffer / high-precision timers.
-          { key: 'Cross-Origin-Opener-Policy', value: 'same-origin' },
+          // `includeSubDomains; preload` are opt-in: once the domain is on the
+          // preload list EVERY subdomain is HTTPS-only for years.
+          ...(isDev ? [] : [{ key: 'Strict-Transport-Security', value: 'max-age=63072000' }]),
+          // Own browsing context group; `allow-popups` keeps OAuth / payment
+          // popups that report back via `window.opener` working. (Cross-origin
+          // isolation for SharedArrayBuffer would need COOP `same-origin` +
+          // COEP — audit every third-party resource first.)
+          { key: 'Cross-Origin-Opener-Policy', value: 'same-origin-allow-popups' },
           { key: 'Cross-Origin-Resource-Policy', value: 'same-origin' },
-          // COEP credentialless locks out cross-origin resources that don't opt in via CORP.
-          // Uncomment only after auditing every third-party image/script/font.
-          // { key: 'Cross-Origin-Embedder-Policy', value: 'credentialless' },
-
-          // Permissions-Policy — deny all powerful APIs by default. Allow per-feature
-          // via `self` or a specific origin, e.g. `camera=(self)` for a video-call page.
-          {
-            key: 'Permissions-Policy',
-            value: [
-              'accelerometer=()',
-              'ambient-light-sensor=()',
-              'autoplay=(self)',
-              'battery=()',
-              'camera=()',
-              'display-capture=()',
-              'document-domain=()',
-              'encrypted-media=()',
-              'fullscreen=(self)',
-              'geolocation=()',
-              'gyroscope=()',
-              'hid=()',
-              'idle-detection=()',
-              'magnetometer=()',
-              'microphone=()',
-              'midi=()',
-              'payment=()',
-              'picture-in-picture=(self)',
-              'publickey-credentials-get=()',
-              'screen-wake-lock=()',
-              'serial=()',
-              'sync-xhr=()',
-              'usb=()',
-              'web-share=(self)',
-              'xr-spatial-tracking=()',
-              'interest-cohort=()',
-            ].join(', '),
-          },
-          // CSP is set dynamically via proxy.ts with per-request nonce.
+          { key: 'Permissions-Policy', value: PERMISSIONS_POLICY },
+          // CSP is set per request in src/proxy.ts (nonce).
         ],
       },
     ];

@@ -15,8 +15,14 @@ export default defineConfig({
     },
   },
   test: {
-    environment: 'jsdom',
+    // Node by default (fast: no DOM per file). Component and hook tests opt
+    // into a DOM with `// @vitest-environment jsdom` on their first line.
+    environment: 'node',
     globals: true,
+    // Every test starts clean: spies restored, vi.stubEnv / vi.stubGlobal undone.
+    restoreMocks: true,
+    unstubEnvs: true,
+    unstubGlobals: true,
     setupFiles: ['./vitest.setup.ts'],
     css: false,
     include: ['src/**/*.{test,spec}.{ts,tsx}'],
@@ -33,12 +39,12 @@ export default defineConfig({
         'src/app/**/page.tsx',
       ],
       // Ratchet baseline — raise as coverage grows, never lower.
-      // (v2.3.0 measured 44/50/36/45 — floors sit ~5pp below.)
+      // (v3.0.0 measured 57/61/45/58 — floors sit ~5pp below.)
       thresholds: {
-        statements: 40,
-        branches: 45,
-        functions: 30,
-        lines: 40,
+        statements: 52,
+        branches: 56,
+        functions: 40,
+        lines: 52,
         // The security-critical layer is held to a real bar.
         'src/lib/**': {
           statements: 70,

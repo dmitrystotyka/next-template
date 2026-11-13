@@ -23,6 +23,10 @@ export function throttle<Args extends unknown[]>(
     const remaining = delay - (now - lastCall);
 
     if (remaining <= 0) {
+      // A late timer (background tab, busy main thread) may still be pending
+      // — drop it, or it would fire again with stale args right after this.
+      clearTimeout(trailing);
+      trailing = undefined;
       lastCall = now;
       fn(...args);
       return;

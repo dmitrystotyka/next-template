@@ -4,8 +4,6 @@ import { projectConfig } from '@/configs/project';
 
 import type { MetadataRoute } from 'next';
 
-export const dynamic = 'force-static';
-
 /**
  * Web App Manifest. Texts come from the default locale's `metadata.global`
  * namespace (the manifest route has no locale segment); colors from
@@ -25,7 +23,9 @@ export default async function manifest(): Promise<MetadataRoute.Manifest> {
     short_name: t('title'),
     description: t('description'),
     start_url: '/',
-    display: 'standalone',
+    // 'browser' until real icons exist: Chrome installs a 'standalone' app only
+    // with 192px + 512px PNGs — add them below, then switch to 'standalone'.
+    display: 'browser',
     background_color: projectConfig.theme.background,
     theme_color: projectConfig.theme.background,
     icons: [

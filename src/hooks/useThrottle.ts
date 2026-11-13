@@ -1,8 +1,7 @@
 'use client';
 
-import { useCallback, useEffect, useRef } from 'react';
+import { useEffect, useLayoutEffect, useRef } from 'react';
 
-import { useLatestRef } from '@/hooks/useLatestRef';
 import { throttle, type Throttled } from '@/utils/throttle';
 
 /**
@@ -19,14 +18,18 @@ export function useThrottle<Args extends unknown[]>(
   fn: (...args: Args) => void,
   delay: number,
 ): (...args: Args) => void {
-  const fnRef = useLatestRef(fn);
-  const throttledRef = useRef<Throttled<Args> | null>(null);
+  // See useDebouncedCallback: a ref because the result runs in event handlers.
+  const fnRef = useRef(fn);
+  useLayoutEffect(() => {
+    fnRef.current = fn;
+  });
 
+  const throttledRef = useRef<Throttled<Args> | null>(null);
   useEffect(() => {
     const throttled = throttle((...args: Args) => fnRef.current(...args), delay);
     throttledRef.current = throttled;
     return () => throttled.cancel();
-  }, [delay, fnRef]);
+  }, [delay]);
 
-  return useCallback((...args: Args) => throttledRef.current?.(...args), []);
+  return (...args: Args) => throttledRef.current?.(...args);
 }

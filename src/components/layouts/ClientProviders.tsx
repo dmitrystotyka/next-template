@@ -2,13 +2,12 @@
 
 import { QueryClientProvider } from '@tanstack/react-query';
 import dynamic from 'next/dynamic';
-import { useState, type ReactNode } from 'react';
-import { Provider as ReduxProvider } from 'react-redux';
 
 import { WebVitals } from '@/components/layouts/WebVitals';
 import { Toaster } from '@/components/UI/Sonner';
 import { getQueryClient } from '@/lib/queryClient';
-import { makeStore, type AppStore } from '@/store';
+
+import type { ReactNode } from 'react';
 
 type ClientProvidersProps = {
   children: ReactNode;
@@ -23,15 +22,17 @@ const ReactQueryDevtools = dynamic(
 
 const isDev = process.env.NODE_ENV === 'development';
 
+/**
+ * Client-side providers for the whole locale tree. Server state lives in
+ * TanStack Query; global CLIENT state needs no library until it outgrows
+ * React context — add one here (Zustand, Redux Toolkit) when it does.
+ */
 export function ClientProviders({ children }: ClientProvidersProps) {
-  const [store] = useState<AppStore>(() => makeStore());
   const queryClient = getQueryClient();
 
   return (
     <QueryClientProvider client={queryClient}>
-      <ReduxProvider store={store}>{children}</ReduxProvider>
-      {/* Toaster/WebVitals don't consume the store — no reason to remount
-          them if the Redux tree ever changes. */}
+      {children}
       <Toaster />
       {/* Always mounted: web vitals matter MOST in production (the hook
           itself decides where metrics go — dev log vs. beacon). */}

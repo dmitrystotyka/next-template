@@ -2,20 +2,9 @@
   "global": {
     "title": "Next Template",
     "title_template": "%s | Next Template",
-    "description": "A pre-configured foundation with TypeScript, Tailwind CSS, i18n, and state management — so you can focus on building, not setting up."
+    "description": "A production-ready Next.js foundation — TypeScript, Tailwind CSS, i18n, security and strict quality gates — so you can focus on building, not setting up."
   },
-
   "home": {
-    "description": "A pre-configured foundation with TypeScript, Tailwind CSS, i18n, and state management — so you can focus on building, not setting up."
-  },
-
-  "template": {
-    "title": "Template Page",
-    "description": "Template Page description"
-  },
-
-  "not_found": {
-    "title": "404 — Page Not Found",
-    "description": "The page you are looking for does not exist"
+    "description": "A production-ready Next.js foundation — TypeScript, Tailwind CSS, i18n, security and strict quality gates — so you can focus on building, not setting up."
   }
 }

@@ -1,9 +1,9 @@
 import { headers } from 'next/headers';
 import { getLocale } from 'next-intl/server';
 
-import { urls } from '@/configs/constants/urls';
-import { getBaseMetadata } from '@/configs/metadata';
+import { getRootMetadata } from '@/configs/metadata';
 import { projectConfig } from '@/configs/project';
+import { urls } from '@/configs/urls';
 import { websiteJsonLd } from '@/lib/jsonLd';
 import { appFont } from '@/styles/fonts';
 
@@ -12,14 +12,14 @@ import type { Metadata, Viewport } from 'next';
 import '@/styles/normalize.css';
 import '@/styles/vars.css';
 import '@/styles/tailwind.css';
-import '@/styles/index.scss';
+import '@/styles/index.css';
 
 type RootLayoutProps = {
   children: React.ReactNode;
 };
 
 export async function generateMetadata(): Promise<Metadata> {
-  return getBaseMetadata();
+  return getRootMetadata();
 }
 
 export const viewport: Viewport = {

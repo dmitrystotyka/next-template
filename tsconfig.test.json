@@ -7,6 +7,7 @@
   "include": [
     "next-env.d.ts",
     "src/types/env.d.ts",
+    "src/types/next-intl.ts",
     "vitest.config.ts",
     "vitest.setup.ts",
     "src/**/*.test.ts",
@@ -15,6 +16,6 @@
     "src/**/*.spec.tsx"
   ],
   // The base config EXCLUDES test files; without overriding `exclude` here the
-  // inherited list wins and `typecheck:test` silently checks zero tests.
+  // inherited list wins and the test half of `pnpm typecheck` silently checks zero tests.
   "exclude": ["node_modules"]
 }

@@ -5,6 +5,7 @@ import {
   ForbiddenError,
   NotFoundError,
   RateLimitError,
+  isIncident,
   NotImplementedError,
   toErrorPayload,
   toErrorResponse,
@@ -70,5 +71,15 @@ describe('NotImplementedError', () => {
     const err = new NotImplementedError('not configured');
     expect(err.status).toBe(501);
     expect(toErrorPayload(err)).toEqual({ code: 'NOT_IMPLEMENTED', message: 'not configured' });
+  });
+});
+
+describe('isIncident', () => {
+  it('reports unknown errors and server-side AppErrors only', () => {
+    expect(isIncident(new Error('boom'))).toBe(true);
+    expect(isIncident('string thrown')).toBe(true);
+    expect(isIncident(new NotFoundError('nope'))).toBe(false);
+    expect(isIncident(new RateLimitError('slow down'))).toBe(false);
+    expect(isIncident(new NotImplementedError('not configured'))).toBe(false);
   });
 });

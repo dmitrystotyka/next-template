@@ -1,27 +1,40 @@
 'use client';
 
 import { useTranslations } from 'next-intl';
+import { useEffect } from 'react';
 
-import { Button } from '@/components/UI';
+import { Button } from '@/components/UI/Button';
+import { errorReporting } from '@/lib/errorReporting';
 
 type ErrorStateProps = {
   error: Error & { digest?: string };
-  reset: () => void;
+  /** Next 16.3+ `retry`: re-fetches and re-renders the segment (`reset` only re-renders). */
+  retry: () => void;
+  /** Reporting scope — which boundary caught it. */
+  scope: string;
+  /**
+   * Render the `<main>` landmark too — for boundaries that replace the whole
+   * page (the `[locale]` one renders without the `(routes)` layout).
+   */
+  landmark?: boolean;
 };
 
 /**
- * Shared UI for `error.tsx` boundaries ([locale] and route groups).
- *
- * Requires `NextIntlClientProvider` above it — `app/global-error.tsx`
- * renders when the root layout itself failed, so it keeps its own
- * hardcoded, inline-styled markup instead of using this component.
+ * The ONE body of every `error.tsx` boundary: reports the error and shows a
+ * translated retry screen. Requires `NextIntlClientProvider` above it —
+ * `app/global-error.tsx` renders when the root layout itself failed, so it
+ * keeps its own hardcoded, inline-styled markup instead.
  */
-export function ErrorState({ error, reset }: ErrorStateProps) {
+export function ErrorState({ error, retry, scope, landmark = false }: ErrorStateProps) {
   const t = useTranslations('translations.errors');
 
-  return (
+  useEffect(() => {
+    errorReporting.captureException(error, { scope, digest: error.digest });
+  }, [error, scope]);
+
+  const content = (
     <div className="flex min-h-[50vh] flex-col items-center justify-center gap-4 px-4 text-center">
-      <h2 className="text-2xl font-semibold">{t('something_went_wrong')}</h2>
+      <h1 className="text-2xl font-semibold">{t('something_went_wrong')}</h1>
 
       {process.env.NODE_ENV === 'development' && error.message ? (
         <pre className="max-w-[600px] overflow-auto rounded-lg bg-destructive/10 px-4 py-3 text-sm break-words whitespace-pre-wrap text-destructive">
@@ -30,7 +43,9 @@ export function ErrorState({ error, reset }: ErrorStateProps) {
         </pre>
       ) : null}
 
-      <Button onClick={reset}>{t('try_again')}</Button>
+      <Button onClick={() => retry()}>{t('try_again')}</Button>
     </div>
   );
+
+  return landmark ? <main id="main-content">{content}</main> : content;
 }

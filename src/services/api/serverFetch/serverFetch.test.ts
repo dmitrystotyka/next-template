@@ -1,6 +1,6 @@
-// @vitest-environment node
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
 
+import { isIncident, toErrorPayload } from '@/lib/errors';
 import { serverFetch, ServerFetchError } from '@/services/api/serverFetch';
 import { logger } from '@/utils/logger';
 
@@ -68,6 +68,14 @@ describe('serverFetch', () => {
 
     fetchMock.mockResolvedValueOnce(new Response('', { status: 503 }));
     await expect(serverFetch(URL_)).rejects.toMatchObject({ status: 503, code: 'INTERNAL' });
+  });
+
+  it('turns upstream 401/403 into 502 and never exposes upstream details', async () => {
+    fetchMock.mockResolvedValueOnce(new Response('', { status: 401, statusText: 'Bad token' }));
+    const err = await serverFetch(URL_).catch((e: unknown) => e);
+    expect(err).toMatchObject({ status: 502, upstreamStatus: 401, code: 'INTERNAL' });
+    expect(toErrorPayload(err)).toEqual({ code: 'INTERNAL', message: 'Upstream request failed' });
+    expect(isIncident(err)).toBe(true);
   });
 
   it('reports a non-JSON 200 as a 502 (bad upstream), never as success', async () => {

@@ -10,16 +10,19 @@
  * 3. Import and spread it here so next-intl picks up autocomplete.
  *
  * The default locale (`en`) is the source of truth — every other locale
- * must mirror its keys. `pnpm check:i18n` enforces that at CI time.
+ * must mirror its keys. Changed `defaultLocale`? Point these imports at it;
+ * `pnpm check:i18n` enforces both (key parity and the import locale).
  */
-import type demo from '@/messages/en/demo.json';
 import type metadata from '@/messages/en/metadata.json';
 import type translations from '@/messages/en/translations.json';
+
+// Pulls next-intl into every TS program that includes this file (the test
+// program may import nothing from it) — augmenting an unresolved module fails.
+import type {} from 'next-intl';
 
 type Messages = {
   translations: typeof translations;
   metadata: typeof metadata;
-  demo: typeof demo;
 };
 
 declare module 'next-intl' {

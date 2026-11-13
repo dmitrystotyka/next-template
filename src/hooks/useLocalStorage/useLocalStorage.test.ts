@@ -1,5 +1,7 @@
+// @vitest-environment jsdom
+
 import { act, renderHook } from '@testing-library/react';
-import { afterEach, describe, expect, it } from 'vitest';
+import { afterEach, describe, expect, it, vi } from 'vitest';
 
 import { useLocalStorage } from '@/hooks/useLocalStorage';
 
@@ -88,5 +90,43 @@ describe('useLocalStorage', () => {
     });
     // Removal falls back to the initial value — not the stale one.
     expect(result.current[0]).toBe('initial');
+  });
+
+  it('gives each instance its own fallback for the same empty key', () => {
+    const { result: a } = renderHook(() => useLocalStorage('empty', 'a'));
+    const { result: b } = renderHook(() => useLocalStorage('empty', 'b'));
+
+    expect(a.current[0]).toBe('a');
+    expect(b.current[0]).toBe('b');
+  });
+
+  it('falls back to the initial value when stored JSON is corrupt', () => {
+    window.localStorage.setItem('broken', '{not json');
+    const { result } = renderHook(() => useLocalStorage('broken', 'fallback'));
+    expect(result.current[0]).toBe('fallback');
+  });
+
+  it('rejects stored values that fail `parse`', () => {
+    window.localStorage.setItem('typed', JSON.stringify({ old: 'schema' }));
+    const parse = (value: unknown) => {
+      if (typeof value !== 'number') throw new Error('not a number');
+      return value;
+    };
+    const { result } = renderHook(() => useLocalStorage('typed', 0, { parse }));
+    expect(result.current[0]).toBe(0);
+  });
+
+  it('keeps the stored value when a write fails (quota, blocked storage)', () => {
+    const { result } = renderHook(() => useLocalStorage('quota', 'kept'));
+    const setItem = vi.spyOn(Storage.prototype, 'setItem').mockImplementation(() => {
+      throw new DOMException('full', 'QuotaExceededError');
+    });
+
+    act(() => {
+      result.current[1]('lost');
+    });
+
+    expect(result.current[0]).toBe('kept');
+    setItem.mockRestore();
   });
 });

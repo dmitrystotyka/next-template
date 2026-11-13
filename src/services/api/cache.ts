@@ -26,9 +26,8 @@ export const REVALIDATE = {
 /**
  * Cache tags: collections as constants, per-entity tags as builders — so
  * a webhook can invalidate exactly one record instead of the whole list.
- * Example resource below (`posts`) — replace with your own.
  */
 export const CACHE_TAGS = {
-  posts: 'posts',
-  post: (slug: string) => `post:${slug}`,
+  // posts: 'posts',
+  // post: (slug: string) => `post:${slug}`,
 } as const;

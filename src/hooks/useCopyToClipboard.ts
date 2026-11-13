@@ -1,6 +1,6 @@
 'use client';
 
-import { useCallback, useEffect, useRef, useState } from 'react';
+import { useEffect, useRef, useState } from 'react';
 
 /**
  * Copy text to the clipboard with a self-resetting "copied" flag.
@@ -26,20 +26,17 @@ export function useCopyToClipboard(resetAfterMs = 2000): {
     };
   }, []);
 
-  const copy = useCallback(
-    async (text: string) => {
-      try {
-        await navigator.clipboard.writeText(text);
-      } catch {
-        return false; // Clipboard API unavailable (permissions, insecure context)
-      }
-      setCopied(true);
-      if (timerRef.current) clearTimeout(timerRef.current);
-      timerRef.current = setTimeout(() => setCopied(false), resetAfterMs);
-      return true;
-    },
-    [resetAfterMs],
-  );
+  const copy = async (text: string) => {
+    try {
+      await navigator.clipboard.writeText(text);
+    } catch {
+      return false; // Clipboard API unavailable (permissions, insecure context)
+    }
+    setCopied(true);
+    if (timerRef.current) clearTimeout(timerRef.current);
+    timerRef.current = setTimeout(() => setCopied(false), resetAfterMs);
+    return true;
+  };
 
   return { copied, copy };
 }

@@ -12,8 +12,9 @@ export default getRequestConfig(async ({ requestLocale }) => {
   const requested = await requestLocale;
   const locale = hasLocale(routing.locales, requested) ? requested : routing.defaultLocale;
 
-  // Per-namespace try/catch is the only error handling needed — a missing
-  // file degrades to an empty namespace instead of crashing the request.
+  // A missing namespace file fails LOUDLY in dev (otherwise every component
+  // silently renders raw keys) and degrades to an empty namespace in
+  // production instead of crashing the request.
   const messages = Object.assign(
     {},
     ...(await Promise.all(
@@ -26,6 +27,11 @@ export default getRequestConfig(async ({ requestLocale }) => {
           };
           return { [ns]: mod.default ?? mod };
         } catch (err) {
+          if (process.env.NODE_ENV === 'development') {
+            throw new Error(`i18n: src/messages/${locale}/${ns}.json failed to load`, {
+              cause: err,
+            });
+          }
           logger.error(`Error loading ${ns} for ${locale}:`, err);
           return { [ns]: {} };
         }
@@ -52,7 +58,7 @@ export default getRequestConfig(async ({ requestLocale }) => {
     },
 
     getMessageFallback({ namespace, key }) {
-      return `${namespace}.${key}`;
+      return namespace ? `${namespace}.${key}` : key;
     },
   };
 });
